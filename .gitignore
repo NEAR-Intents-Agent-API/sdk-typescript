@@ -1,0 +1,8 @@
+node_modules/
+scripts/
+dist/
+output/
+*.tgz
+.env
+.env.*
+!.env.example

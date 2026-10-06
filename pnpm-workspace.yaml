@@ -1,0 +1,3 @@
+# Marks this directory as its own pnpm root (it is not part of the monorepo workspace).
+allowBuilds:
+  esbuild: true
