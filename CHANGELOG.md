@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+`getOperationProof(agentId, correlationId)` returns every audit event of an execution with a
+`c2sp.org/tlog-proof@v1` against the notary-signed checkpoint of the API's transparency log, plus
+the notary keys and their TDX birth attestation. New types `OperationProof` and `AuditProof`.
+
 ## 0.1.1
 
 First release of `@near-intents-agent-api/sdk`: a thin, typed, server-side HTTP client with one

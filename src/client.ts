@@ -19,6 +19,7 @@ import type {
   HistoryPage,
   IntentType,
   NetworkView,
+  OperationProof,
   PartnerQuotaView,
   PolicyHistoryView,
   PolicyView,
@@ -227,6 +228,22 @@ export class AgentApi {
     options: RequestOptions = {},
   ): Promise<HistoryPage> {
     return this.call(endpoints.getHistory, { params: { agent_id: agentId }, query, ...options });
+  }
+
+  /**
+   * Every audit event of one execution, each with a `c2sp.org/tlog-proof@v1` against the latest
+   * notary-signed checkpoint of the API's transparency log. An event that checkpoint does not yet
+   * cover reads `PENDING`.
+   */
+  getOperationProof(
+    agentId: string,
+    correlationId: string,
+    options: RequestOptions = {},
+  ): Promise<OperationProof> {
+    return this.call(endpoints.getOperationProof, {
+      params: { agent_id: agentId, correlation_id: correlationId },
+      ...options,
+    });
   }
 
   // ------------------------------------------------------------------------------------ agents

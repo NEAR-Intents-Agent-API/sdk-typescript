@@ -305,7 +305,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 
 | Area | Methods |
 |---|---|
-| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory` |
+| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
