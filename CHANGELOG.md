@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.1.1
 
 First release of `@near-intents-agent-api/sdk`: a thin, typed, server-side HTTP client with one
 method per endpoint, JSON:API errors, request-local idempotency keys, grant-bound clients
