@@ -16,6 +16,7 @@ export const endpoints = {
   submitIntent: { operationId: "submitIntent", method: "post", path: "/v1/submit-intent" },
   getStatus: { operationId: "getStatus", method: "get", path: "/v1/status" },
   getHistory: { operationId: "getHistory", method: "get", path: "/v1/agents/{agent_id}/history" },
+  getOperationProof: { operationId: "getOperationProof", method: "get", path: "/v1/agents/{agent_id}/operations/{correlation_id}/proof" },
   listAgents: { operationId: "listAgents", method: "get", path: "/v1/agents" },
   getAgent: { operationId: "getAgent", method: "get", path: "/v1/agents/{agent_id}" },
   getWallet: { operationId: "getWallet", method: "get", path: "/v1/agents/{agent_id}/wallet" },

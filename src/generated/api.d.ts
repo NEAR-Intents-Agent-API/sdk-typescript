@@ -77,6 +77,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/operations/{correlation_id}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prove an execution's audit trail from the attested transparency log
+         * @description Returns every retained audit event of one execution. A `PROVEN` event carries a `c2sp.org/tlog-proof@v1` that anyone can check offline: the opening in `extra` hashes to a leaf, the leaf is included in the checkpoint, and the checkpoint is signed by `notary`, whose keys the TDX quote in `notary.birth` binds. Proofs use the latest checkpoint, so a recent event reads `PENDING` until the next one.
+         */
+        get: operations["getOperationProof"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents": {
         parameters: {
             query?: never;
@@ -1643,6 +1663,126 @@ export interface operations {
                     "application/json": {
                         data: components["schemas"]["StatusResponse"][];
                         next_cursor: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    getOperationProof: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                correlation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        origin: string;
+                        notary: {
+                            log_key: string;
+                            notary_key: string;
+                            signing_address: string;
+                            birth: {
+                                attestation: string;
+                                report_data: string;
+                                previous: {
+                                    note: string;
+                                    log_key: string;
+                                    notary_key: string;
+                                } | null;
+                            };
+                        } | null;
+                        events: {
+                            action: string;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            proof: string | null;
+                        }[];
                     };
                 };
             };
