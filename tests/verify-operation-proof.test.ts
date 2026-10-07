@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ed25519 } from "@noble/curves/ed25519.js";
-import { bytesToHex } from "@noble/hashes/utils.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { base58 } from "@scure/base";
 import { auditLeaf, encodeAuditOpening } from "../src/generated/transparency/audit.js";
 import { birthReportData, signingAddress } from "../src/generated/transparency/binding.js";
 import { formatCheckpoint } from "../src/generated/transparency/checkpoint.js";
@@ -27,13 +29,16 @@ const notaryName = "api.example.com/notary";
 const correlationId = "op_example";
 const agentId = "a".repeat(64);
 const event = { action: "execute.completed", created_at: "2026-10-06T00:00:00.000Z" };
+const settlement = base58.encode(new Uint8Array(32).fill(7));
+const evidence = JSON.stringify({ settlement_tx_hash: settlement });
+const evidenceHash = bytesToHex(sha256(utf8ToBytes(evidence)));
 
 /** A one-entry log whose checkpoint the log key and the notary cosign, as the API serves it. */
 function proofDocument(): OperationProofDocument {
   const logSecret = ed25519.utils.randomSecretKey();
   const notarySecret = ed25519.utils.randomSecretKey();
   const opening = encodeAuditOpening(
-    { action: event.action, resourceId: correlationId, createdAt: event.created_at },
+    { action: event.action, resourceId: correlationId, createdAt: event.created_at, evidenceHash },
     new Uint8Array(32).fill(7),
   );
   const checkpoint = formatCheckpoint({
@@ -65,6 +70,7 @@ function proofDocument(): OperationProofDocument {
         proof: new TextDecoder().decode(
           formatTlogProof({ extra: opening, index: 0n, proof: [], checkpoint: note }),
         ),
+        evidence,
       },
     ],
   };
@@ -78,8 +84,10 @@ test("a proof the log and notary signed verifies offline and opens to its event"
   assert.deepEqual(verified.proven[0]?.fields, {
     action: event.action,
     createdAt: event.created_at,
+    evidenceHash,
     resourceId: correlationId,
   });
+  assert.deepEqual(verified.proven[0]?.evidence, JSON.parse(evidence));
   assert.equal(verified.proven[0]?.cosignedAt, 1_791_000_000n);
   assert.deepEqual([verified.pending, verified.unlogged], [0, 0]);
 });
@@ -102,6 +110,13 @@ test("forged logs, events, openings and notary keys the birth does not bind are 
   const forgeries: [OperationProofDocument, typeof NoteError | typeof ProofError][] = [
     [{ ...document, origin: "api.other.example/log" }, NoteError],
     [{ ...document, events: [{ ...proven, action: "execute.failed" }] }, NoteError],
+    [
+      {
+        ...document,
+        events: [{ ...proven, evidence: evidence.replace(settlement, settlement.slice(1)) }],
+      },
+      NoteError,
+    ],
     [{ ...document, events: [{ ...proven, proof: swapped }] }, ProofError],
     [{ ...document, notary: { ...notary, notary_key: unbound } }, NoteError],
     [{ ...document, notary: { ...notary, birth: otherBirth } }, NoteError],
