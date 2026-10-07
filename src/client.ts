@@ -26,7 +26,7 @@ import type {
   RecoverRequest,
   ScheduledPage,
   Signature,
-  SignMessageRequest,
+  SignRequest,
   StatusResponse,
   StatusResponseOf,
   SubmitIntentRequest,
@@ -460,15 +460,12 @@ export class AgentApi {
   }
 
   /**
-   * Signs a canonical identity challenge with the agent's NEAR key (NEP-413). Needs a grant token,
-   * a policy listing the recipient, and a server with NEAR message signing enabled.
+   * Signs a canonical identity challenge with the agent's NEAR key (NEP-413). Needs a grant token
+   * and a policy whose `sign.recipients` lists the recipient. Never signs for `intents.near` or
+   * `intents.far`.
    */
-  signMessage(
-    agentId: string,
-    request: SignMessageRequest,
-    options: RequestOptions = {},
-  ): Promise<Signature> {
-    return this.call(endpoints.signMessage, {
+  sign(agentId: string, request: SignRequest, options: RequestOptions = {}): Promise<Signature> {
+    return this.call(endpoints.sign, {
       params: { agent_id: agentId },
       body: request,
       ...options,

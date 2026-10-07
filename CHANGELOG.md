@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- `Policy` adds the optional `sign: { recipients }`, replacing `sign_message`. Omitted, the agent
+  signs nothing; listed, any grant may sign identity challenges for those NEAR accounts. The NEAR
+  Intents contracts (`intents.near`, `intents.far`) are never accepted.
+- `signMessage` is renamed `sign` and calls `POST /v1/agents/{agent_id}/sign`; `SignMessageRequest`
+  is renamed `SignRequest`. Signing no longer depends on a server setting.
+- New error code `signing_recipient_forbidden`.
+
 ## 0.3.0
 
 - `Policy` adds the optional `schedule`: `{ mode: "only" | "except", time_zone, windows: [{ days,

@@ -36,7 +36,7 @@ export const endpoints = {
   unshield: { operationId: "unshield", method: "post", path: "/v1/agents/{agent_id}/unshield", grant: true, idempotency: "required" },
   deposit: { operationId: "deposit", method: "post", path: "/v1/agents/{agent_id}/deposit", idempotency: "required" },
   recover: { operationId: "recover", method: "post", path: "/v1/agents/{agent_id}/recover", grant: true, idempotency: "required" },
-  signMessage: { operationId: "signMessage", method: "post", path: "/v1/agents/{agent_id}/sign-message", grant: true },
+  sign: { operationId: "sign", method: "post", path: "/v1/agents/{agent_id}/sign", grant: true },
   getTokens: { operationId: "getTokens", method: "get", path: "/v1/tokens" },
   getNetwork: { operationId: "getNetwork", method: "get", path: "/v1/network" },
   whoami: { operationId: "whoami", method: "get", path: "/v1/whoami" },
