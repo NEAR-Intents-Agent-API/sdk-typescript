@@ -27,7 +27,7 @@ the policy says *what* any grant may do, where funds may go and how much.
 
 ## Setup
 
-Create an API key in the partner dashboard and keep it out of git:
+Create an API key in the [partner dashboard](https://partners.near-intents.org/) and keep it out of git:
 
 ```sh
 # .env
@@ -78,7 +78,7 @@ const policy: Policy = {
   max_actions_per_hour: null,
   destinations: { mode: "only", list: [] }, // no destinations: funds stay in the account
   budget: { daily_usd: "100", weekly_usd: null, monthly_usd: null }, // USD caps across assets
-  timelock_ms: 0, // delay before every delegated action runs
+  timelock_ms: 0, // delay before every money action runs (deposits excepted)
 };
 
 // 2. Prepare. The response carries the exact payload the owner's wallet must sign.
@@ -154,10 +154,12 @@ Incoming funds need no grant. Ask for a deposit address, send to it, and follow 
 ```ts
 const deposit = await api.deposit(agentId, {
   origin_asset: "nep141:usdt.tether-token.near",
-  amount: "2000000", // atomic units: 2 USDT with 6 decimals
   confidential: false,
 });
-// Send externally to deposit.details.deposit_address, then poll getStatus(deposit.correlation_id).
+// Send at least deposit.details.min_amount to deposit.details.deposit_address (with
+// deposit.details.memo if present) before deposit.details.expires_at, then poll
+// getStatus(deposit.correlation_id). Add `amount` (atomic units) for an exact deposit.
+// A failed or late deposit refunds into the agent's own balance (deposit.details.refund_to).
 
 const balances = await api.getBalances(agentId);
 ```
@@ -222,6 +224,24 @@ const update = await api.generateIntent({
 });
 // Owner signs update.intent, backend submits, then follow update.correlation_id.
 ```
+
+`timelock_ms`, `destinations`, `budget` and `schedule` are enforced by the API itself, so changing
+only those needs no blockchain transaction. `schedule` is optional and limits money actions to
+weekly windows in an IANA time zone; omit it to remove it:
+
+```ts
+policy: {
+  ...current.policy,
+  schedule: {
+    mode: "only",
+    time_zone: "Europe/Berlin",
+    windows: [{ days: ["mon", "tue", "wed", "thu", "fri"], start: "09:00", end: "17:00" }],
+  },
+},
+```
+
+Outside the schedule an action fails with `policy_schedule_denied`; `error.availableAt` says when
+it can run.
 
 If someone changed the policy meanwhile, submitting fails with `policy_revision_conflict`: read the
 current policy again and ask for a fresh signature. Other owner actions use the same four steps:
@@ -324,10 +344,11 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Area | Methods |
 |---|---|
 | Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof` |
-| Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment` |
+| Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
+| Identity signing (only where the deployment enables it; needs a grant) | `signMessage` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
 | Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 
