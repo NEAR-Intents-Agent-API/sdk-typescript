@@ -426,7 +426,7 @@ export interface paths {
         put?: never;
         /**
          * Get a deposit address that funds the agent from another chain
-         * @description Requires an API key, not an owner grant. Creates a public or confidential deposit address without spending agent funds or applying an execution delay. Provider policy still applies. The status reads `PENDING_DEPOSIT` with `details.deposit_address` until funds arrive. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
+         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
          */
         post: operations["deposit"];
         delete?: never;
@@ -635,6 +635,16 @@ export interface components {
                 monthly_usd: string | null;
             };
             timelock_ms: number;
+            schedule?: {
+                /** @enum {string} */
+                mode: "only" | "except";
+                time_zone: string;
+                windows: {
+                    days: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+                    start: string;
+                    end: string;
+                }[];
+            };
             sign_message?: {
                 recipients: string[];
             };
@@ -1188,7 +1198,11 @@ export interface components {
             destination_tx_hash?: string | null;
             amount_out?: string | null;
             deposit_address?: string | null;
-            intent_id?: string | null;
+            memo?: string | null;
+            min_amount?: string | null;
+            min_amount_out?: string | null;
+            expires_at?: string | null;
+            refund_to?: string | null;
             refund_tx_hash?: string | null;
             failure_reason?: string | null;
         } & {
@@ -3769,8 +3783,7 @@ export interface operations {
                 "application/json": {
                     origin_asset: string;
                     destination_asset?: string;
-                    amount: string;
-                    refund_to?: string;
+                    amount?: string;
                     /** @default false */
                     confidential?: boolean;
                 };

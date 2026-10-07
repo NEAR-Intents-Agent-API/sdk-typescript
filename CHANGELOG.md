@@ -6,6 +6,10 @@
 `c2sp.org/tlog-proof@v1` against the notary-signed checkpoint of the API's transparency log, plus
 the notary keys and their TDX birth attestation. New types `OperationProof` and `AuditProof`.
 
+`verifyOperationProof(proof, origin)` checks such a proof offline and throws `NoteError` or
+`ProofError` when it does not hold. Its code is generated verbatim from the API's transparency
+package into `src/generated/transparency`, and adds the `@noble/curves` dependency.
+
 ## 0.1.1
 
 First release of `@near-intents-agent-api/sdk`: a thin, typed, server-side HTTP client with one

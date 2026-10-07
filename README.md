@@ -246,6 +246,24 @@ current policy again and ask for a fresh signature. Other owner actions use the 
 A failed operation with `details.never_executed` or `details.never_submitted` set to `true` has its
 USD budget charge released once; a new attempt needs a new idempotency key.
 
+## Verify an operation
+
+`getOperationProof` returns an execution's audit trail with a transparency-log proof per event.
+`verifyOperationProof` checks it offline, without trusting the API: each `PROVEN` event's opening
+hashes to a leaf the checkpoint includes, the checkpoint carries the log's and the notary's
+signatures, and the opening describes that event. Pin the log origin yourself.
+
+```ts
+const proof = await api.getOperationProof(agentId, correlationId);
+const verified = verifyOperationProof(proof, "api.agentsonintents.com/log");
+```
+
+`verified.proven` lists each event's leaf index, audited fields and checkpoint; `PENDING` events
+wait for the next checkpoint. A proof that does not hold throws `NoteError` or `ProofError`. The
+TDX quote is not checked here: to tie the notary keys to attested code, verify the dstack
+attestation in `proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and
+compare its `report_data` with `verified.birthReportData`.
+
 ## Idempotency
 
 Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshield`, `deposit`)
@@ -311,7 +329,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant` |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 
 `getPartnerQuota()` reports how many agents and API keys you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,

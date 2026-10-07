@@ -11,6 +11,14 @@ export {
   AgentApiRequestError,
   AgentApiResponseTooLargeError,
 } from "./errors.js";
+export { NoteError } from "./generated/transparency/note.js";
+export {
+  type OperationProofDocument,
+  type ProvenEvent,
+  type VerifiedOperation,
+  verifyOperationProof,
+} from "./generated/transparency/operation-proof.js";
+export { ProofError } from "./generated/transparency/verify.js";
 export {
   createGrantCredential,
   type GrantCredential,
