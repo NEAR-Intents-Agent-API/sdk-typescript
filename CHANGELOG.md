@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- `Policy` adds the optional `schedule`: `{ mode: "only" | "except", time_zone, windows: [{ days,
+  start, end }] }`, weekly windows on the owner's clock when money actions may run or are paused.
+  New types `Schedule`, `ScheduleWindow` and `ScheduleDay`.
+- A money action outside the schedule fails with `policy_schedule_denied`; `AgentApiError.availableAt`
+  is the earliest time to submit again.
+
 ## 0.2.0
 
 - `deposit`: `amount` is optional. Without it, the address accepts any amount at or above

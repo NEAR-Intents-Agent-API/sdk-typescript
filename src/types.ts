@@ -38,6 +38,10 @@ export type PolicyAction = Policy["actions"][number];
 /** Where withdrawals and transfers may go: a mode plus the exact destinations it lists. */
 export type DestinationRule = Policy["destinations"];
 export type Destination = DestinationRule["list"][number];
+/** Weekly windows on the owner's clock when money actions may run (`only`) or are paused (`except`). */
+export type Schedule = NonNullable<Policy["schedule"]>;
+export type ScheduleWindow = Schedule["windows"][number];
+export type ScheduleDay = ScheduleWindow["days"][number];
 export type PolicyView = Schemas["PolicyView"];
 export type PolicyHistoryView = Success<"getPolicyHistory">;
 export type GrantView = Schemas["GrantView"];
