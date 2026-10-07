@@ -615,6 +615,16 @@ export interface components {
                 monthly_usd: string | null;
             };
             timelock_ms: number;
+            schedule?: {
+                /** @enum {string} */
+                mode: "only" | "except";
+                time_zone: string;
+                windows: {
+                    days: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+                    start: string;
+                    end: string;
+                }[];
+            };
             sign_message?: {
                 recipients: string[];
             };
