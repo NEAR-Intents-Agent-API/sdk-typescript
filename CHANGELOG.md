@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0
+
+- `deposit`: `amount` is optional. Without it, the address accepts any amount at or above
+  `details.min_amount` until `details.expires_at`.
+- `deposit`: `refund_to` is removed. A failed or late deposit refunds into the agent's own
+  balance, reported as `details.refund_to`.
+- Status `details` add `memo`, `min_amount`, `min_amount_out`, `expires_at` and `refund_to`, and
+  drop `intent_id`.
+
 ## 0.1.1
 
 First release of `@near-intents-agent-api/sdk`: a thin, typed, server-side HTTP client with one

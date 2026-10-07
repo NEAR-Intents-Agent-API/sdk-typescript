@@ -430,7 +430,10 @@ export class AgentApi {
     });
   }
 
-  /** Creates an inbound public or confidential deposit address; no grant token is needed. */
+  /**
+   * Creates an inbound public or confidential deposit address; no grant token is needed. Omit
+   * `amount` to accept any amount at or above `details.min_amount`; refunds go to the agent.
+   */
   deposit(
     agentId: string,
     request: DepositRequest,
