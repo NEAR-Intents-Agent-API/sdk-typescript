@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier
+  checks it against the opening's `evidenceHash` and returns it parsed on each proven event.
+
 ## 0.4.0
 
 - `Policy` adds the optional `sign: { recipients }`, replacing `sign_message`. Omitted, the agent
@@ -14,9 +19,6 @@
 - `verifyOperationProof(proof, origin)` checks such a proof offline and throws `NoteError` or
   `ProofError` when it does not hold. Its code is generated verbatim from the API's transparency
   package into `src/generated/transparency`, and adds the `@noble/curves` dependency.
-
-Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier
-checks it against the opening's `evidenceHash` and returns it parsed on each proven event.
 
 ## 0.3.0
 
