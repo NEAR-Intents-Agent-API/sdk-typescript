@@ -117,6 +117,24 @@ test("a grant client sends its token only to delegated endpoints", async () => {
   assert.throws(() => api.forGrant("not-a-token"), /grantToken is not an ngt_ token/);
 });
 
+test("an operation proof is read from the agent's operation with the API key alone", async () => {
+  const calls: { url: URL; headers: Headers }[] = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input, init) => {
+      calls.push({ url: new URL(String(input)), headers: new Headers(init?.headers) });
+      return Response.json({ correlation_id: "op_1", origin: "o", notary: null, events: [] });
+    },
+  });
+  const { token } = createGrantCredential();
+  await api.forGrant(token).getOperationProof(agentId, "op_a/b");
+  assert.equal(calls[0]?.url.pathname, `/v1/agents/${agentId}/operations/op_a%2Fb/proof`);
+  assert.equal(calls[0]?.headers.get("x-api-key"), apiKey);
+  assert.equal(calls[0]?.headers.get("x-grant-token"), null);
+  assert.equal(calls[0]?.headers.get("idempotency-key"), null);
+});
+
 test("client exposes JSON:API errors and handles non-JSON upstream failures", async () => {
   for (const json of [true, false]) {
     const api = new AgentApi({

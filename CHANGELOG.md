@@ -8,6 +8,12 @@
 - `signMessage` is renamed `sign` and calls `POST /v1/agents/{agent_id}/sign`; `SignMessageRequest`
   is renamed `SignRequest`. Signing no longer depends on a server setting.
 - New error code `signing_recipient_forbidden`.
+- `getOperationProof(agentId, correlationId)` returns every audit event of an execution with a
+  `c2sp.org/tlog-proof@v1` against the notary-signed checkpoint of the API's transparency log, plus
+  the notary keys and their TDX birth attestation. New types `OperationProof` and `AuditProof`.
+- `verifyOperationProof(proof, origin)` checks such a proof offline and throws `NoteError` or
+  `ProofError` when it does not hold. Its code is generated verbatim from the API's transparency
+  package into `src/generated/transparency`, and adds the `@noble/curves` dependency.
 
 ## 0.3.0
 

@@ -19,8 +19,9 @@ pnpm check   # lint, typecheck + build, unit tests
 - `src/types.ts`: the public names for the wire types.
 - `src/generated/`: **generated, never edit by hand.** `api.d.ts` (request and response types) and
   `routes.ts` (method, path and idempotency of every endpoint) are produced from the API's OpenAPI
-  document. A pull request that edits them directly will not be merged; if a type is wrong or
-  missing, open an issue describing the API response and we will fix it at the source.
+  document; `transparency/` is the offline operation-proof verifier, copied verbatim from the API's
+  `packages/transparency`. A pull request that edits them directly will not be merged; if a type
+  is wrong or missing, open an issue describing the API response and we will fix it at the source.
 
 The SDK ships no runtime schemas. To validate responses or generate a client in another language,
 generate it from `GET /openapi.json` on the API.
