@@ -154,10 +154,12 @@ Incoming funds need no grant. Ask for a deposit address, send to it, and follow 
 ```ts
 const deposit = await api.deposit(agentId, {
   origin_asset: "nep141:usdt.tether-token.near",
-  amount: "2000000", // atomic units: 2 USDT with 6 decimals
   confidential: false,
 });
-// Send externally to deposit.details.deposit_address, then poll getStatus(deposit.correlation_id).
+// Send at least deposit.details.min_amount to deposit.details.deposit_address (with
+// deposit.details.memo if present) before deposit.details.expires_at, then poll
+// getStatus(deposit.correlation_id). Add `amount` (atomic units) for an exact deposit.
+// A failed or late deposit refunds into the agent's own balance (deposit.details.refund_to).
 
 const balances = await api.getBalances(agentId);
 ```
