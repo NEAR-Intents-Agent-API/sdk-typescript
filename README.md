@@ -348,7 +348,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
-| Identity signing (only where the deployment enables it; needs a grant) | `signMessage` |
+| Identity signing (the policy's `sign` rule lists the recipients; needs a grant) | `sign` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
 | Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 

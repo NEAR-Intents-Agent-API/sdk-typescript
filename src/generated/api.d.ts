@@ -455,7 +455,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/agents/{agent_id}/sign-message": {
+    "/v1/agents/{agent_id}/sign": {
         parameters: {
             query?: never;
             header?: never;
@@ -466,9 +466,9 @@ export interface paths {
         put?: never;
         /**
          * Sign an identity challenge with the agent's NEAR key (NEP-413)
-         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `sign_message.recipients`. `message` is a canonical `near-intents-agent-api.identity.v1` challenge whose `audience` equals `recipient`. Available only where the server enables NEAR message signing.
+         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `sign.recipients`. `message` is a canonical `near-intents-agent-api.identity.v1` challenge whose `audience` equals `recipient`; nothing else is ever signed. The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`.
          */
-        post: operations["signMessage"];
+        post: operations["sign"];
         delete?: never;
         options?: never;
         head?: never;
@@ -645,7 +645,7 @@ export interface components {
                     end: string;
                 }[];
             };
-            sign_message?: {
+            sign?: {
                 recipients: string[];
             };
         };
@@ -4020,7 +4020,7 @@ export interface operations {
             };
         };
     };
-    signMessage: {
+    sign: {
         parameters: {
             query?: never;
             header?: never;
