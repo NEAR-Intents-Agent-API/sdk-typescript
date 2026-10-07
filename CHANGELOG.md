@@ -1,14 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
-`getOperationProof(agentId, correlationId)` returns every audit event of an execution with a
-`c2sp.org/tlog-proof@v1` against the notary-signed checkpoint of the API's transparency log, plus
-the notary keys and their TDX birth attestation. New types `OperationProof` and `AuditProof`.
-
-`verifyOperationProof(proof, origin)` checks such a proof offline and throws `NoteError` or
-`ProofError` when it does not hold. Its code is generated verbatim from the API's transparency
-package into `src/generated/transparency`, and adds the `@noble/curves` dependency.
+- `Policy` adds the optional `sign: { recipients }`, replacing `sign_message`. Omitted, the agent
+  signs nothing; listed, any grant may sign identity challenges for those NEAR accounts. The NEAR
+  Intents contracts (`intents.near`, `intents.far`) are never accepted.
+- `signMessage` is renamed `sign` and calls `POST /v1/agents/{agent_id}/sign`; `SignMessageRequest`
+  is renamed `SignRequest`. Signing no longer depends on a server setting.
+- New error code `signing_recipient_forbidden`.
+- `getOperationProof(agentId, correlationId)` returns every audit event of an execution with a
+  `c2sp.org/tlog-proof@v1` against the notary-signed checkpoint of the API's transparency log, plus
+  the notary keys and their TDX birth attestation. New types `OperationProof` and `AuditProof`.
+- `verifyOperationProof(proof, origin)` checks such a proof offline and throws `NoteError` or
+  `ProofError` when it does not hold. Its code is generated verbatim from the API's transparency
+  package into `src/generated/transparency`, and adds the `@noble/curves` dependency.
 
 Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier
 checks it against the opening's `evidenceHash` and returns it parsed on each proven event.

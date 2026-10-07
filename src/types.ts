@@ -102,5 +102,5 @@ export type TransferRequest = RequestBody<"transfer">;
 export type BalanceMoveRequest = RequestBody<"shield">;
 export type DepositRequest = RequestBody<"deposit">;
 export type RecoverRequest = RequestBody<"recover">;
-export type SignMessageRequest = RequestBody<"signMessage">;
-export type Signature = Success<"signMessage">;
+export type SignRequest = RequestBody<"sign">;
+export type Signature = Success<"sign">;
