@@ -31,13 +31,13 @@ Create an API key in the [partner dashboard](https://partners.near-intents.org/)
 
 ```sh
 # .env
-AGENT_API_KEY=naa_...
+NEAR_INTENTS_AGENT_API_KEY=naa_...
 ```
 
 ```ts
 import { createAgentApi } from "@near-intents-agent-api/sdk";
 
-const api = createAgentApi({ apiKey: process.env.AGENT_API_KEY! });
+const api = createAgentApi({ apiKey: process.env.NEAR_INTENTS_AGENT_API_KEY! });
 ```
 
 Run it with `node --env-file=.env your-script.js`. The client talks to
@@ -45,7 +45,7 @@ Run it with `node --env-file=.env your-script.js`. The client talks to
 deployment (HTTPS, or HTTP for `localhost`):
 
 ```ts
-const local = createAgentApi({ apiKey: process.env.AGENT_API_KEY!, baseUrl: "http://localhost:3000" });
+const local = createAgentApi({ apiKey: process.env.NEAR_INTENTS_AGENT_API_KEY!, baseUrl: "http://localhost:3000" });
 ```
 
 Check the connection:
