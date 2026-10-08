@@ -1,6 +1,6 @@
 # `@near-intents-agent-api/sdk`
 
-TypeScript client for the **NEAR Intents Agent API**: give an AI agent its own custody account on
+TypeScript client for the **NEAR Intents Agent API**: give an AI agent its own agent account on
 NEAR Intents, let its owner sign the spending rules once, and let the agent swap, transfer and
 withdraw inside those rules.
 
