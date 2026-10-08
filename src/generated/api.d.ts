@@ -86,7 +86,7 @@ export interface paths {
         };
         /**
          * Prove an execution's audit trail from the attested transparency log
-         * @description Returns every retained audit event of one execution. A `PROVEN` event carries a `c2sp.org/tlog-proof@v1` that anyone can check offline: the opening in `extra` hashes to a leaf, the leaf is included in the checkpoint, and the checkpoint is signed by `notary`, whose keys the TDX quote in `notary.birth` binds. Proofs use the latest checkpoint, so a recent event reads `PENDING` until the next one.
+         * @description Returns every retained audit event of one execution. A `PROVEN` event carries a `c2sp.org/tlog-proof@v1` that anyone can check offline: the opening in `extra` hashes to a leaf, the leaf is included in the checkpoint, and the checkpoint is signed by `notary`, whose keys the TDX quote in `notary.birth` binds. Each event's `evidence` is the result it recorded, including any settlement transaction hashes, and hashes to the opening's `evidenceHash`. Proofs use the latest checkpoint, so a recent event reads `PENDING` until the next one.
          */
         get: operations["getOperationProof"];
         put?: never;
@@ -1782,6 +1782,7 @@ export interface operations {
                             /** @enum {string} */
                             status: "PROVEN" | "PENDING" | "UNLOGGED";
                             proof: string | null;
+                            evidence: string | null;
                         }[];
                     };
                 };

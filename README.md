@@ -278,8 +278,10 @@ const proof = await api.getOperationProof(agentId, correlationId);
 const verified = verifyOperationProof(proof, "api.agentsonintents.com/log");
 ```
 
-`verified.proven` lists each event's leaf index, audited fields and checkpoint; `PENDING` events
-wait for the next checkpoint. A proof that does not hold throws `NoteError` or `ProofError`. The
+`verified.proven` lists each event's leaf index, audited fields, checkpoint and `evidence`: the
+result it recorded, with its settlement transaction hashes, checked against the opening's
+`evidenceHash`. `PENDING` events wait for the next checkpoint. A proof that does not hold, or
+evidence altered after it was committed, throws `NoteError` or `ProofError`. The
 TDX quote is not checked here: to tie the notary keys to attested code, verify the dstack
 attestation in `proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and
 compare its `report_data` with `verified.birthReportData`.
