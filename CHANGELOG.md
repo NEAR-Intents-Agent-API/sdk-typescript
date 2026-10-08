@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
 
 - Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier
   checks it against the opening's `evidenceHash` and returns it parsed on each proven event.
