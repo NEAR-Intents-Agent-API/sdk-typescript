@@ -326,7 +326,16 @@ try {
 Transport, timeout, cancellation and parsing failures throw `AgentApiRequestError`, and a response
 over the size budget throws `AgentApiResponseTooLargeError`. Both keep the original `idempotencyKey`
 (and `cause`); a failed write may still have reached the API, so reconcile the original operation
-before retrying. Rate limits (`429`) expose `retryable` and `availableAt`.
+before retrying. `retryable` means the identical call under the same `idempotencyKey` can succeed
+after `availableAt` or `Retry-After`; server errors (`internal_error`, `database_busy`,
+`transaction_unconfirmed`) are retryable because the call may have taken effect, so repeat them
+under the same key, never a new one. `retryable: false` says only that repeating will not help
+now, never that nothing was sent. Use a new key only after a refusal documented as sending nothing
+(such as `wallet_busy`, whose key replays the refusal); after a server error, a lost response or
+a recovery code, keep the original key and read the status. A `FAILED` or `REFUNDED` status is not
+proof that nothing was sent (a partial failure is `FAILED`): check its details and balances before
+deciding to send new work. An execution the
+provider may have received returns `UNCERTAIN`; keep polling its `correlation_id`.
 
 ## Options
 
