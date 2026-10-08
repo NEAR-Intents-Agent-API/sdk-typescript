@@ -41,6 +41,11 @@ export class AgentApiResponseTooLargeError extends Error {
 /**
  * A non-2xx response. `code` is the first error's stable snake_case code; branch on it, never on
  * `title` or `detail`. `errors` holds every entry (validation failures return one per field).
+ * `retryable` means the identical request under the same Idempotency-Key can succeed after
+ * `availableAt` or Retry-After, including a server error whose request may have taken effect.
+ * `false` says only that repeating will not help now, never that nothing was sent: a new key is
+ * safe only after a refusal documented as sending nothing. A FAILED or REFUNDED status is not that
+ * proof.
  */
 export class AgentApiError extends Error {
   readonly status: number;
