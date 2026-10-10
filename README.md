@@ -1,18 +1,36 @@
+<div align="center">
+
 # `@near-intents-agent-api/sdk`
 
-TypeScript client for the **NEAR Intents Agent API**: give an AI agent its own agent account on
-NEAR Intents, let its owner sign the spending rules once, and let the agent swap, transfer and
-withdraw inside those rules.
+**Typed TypeScript client for the NEAR Intents Agent API.**
+
+[![npm](https://img.shields.io/npm/v/@near-intents-agent-api/sdk)](https://www.npmjs.com/package/@near-intents-agent-api/sdk)
+[![CI](https://github.com/NEAR-Intents-Agent-API/sdk-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/NEAR-Intents-Agent-API/sdk-typescript/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@near-intents-agent-api/sdk)](LICENSE)
+![node](https://img.shields.io/node/v/@near-intents-agent-api/sdk)
+
+[Install](#install) · [How it fits](#how-it-fits-together) · [Create an agent](#create-an-agent) · [Let an agent act](#let-an-agent-act) · [Errors](#errors) · [Methods](#methods)
+
+</div>
+
+Give an AI agent its own agent account on NEAR Intents, let its owner sign the spending rules
+once, and let the agent swap, transfer and withdraw inside those rules.
 
 - One method per endpoint, plain TypeScript types for every request and response.
 - Runs on your **backend**. It holds your API key, so it never belongs in a browser.
 - No wallet signers, no React hooks, no automatic retries. Types only, no runtime schemas.
+- Offline verification of operation proofs, and grant-token and idempotency-key helpers.
+
+> [!WARNING]
+> The hosted API runs on mainnet with real funds. Build with small amounts and a dedicated owner account.
+
+## Install
 
 ```sh
 npm install @near-intents-agent-api/sdk
 ```
 
-Requires Node 24+. MIT licensed.
+Requires Node.js 24+.
 
 ## How it fits together
 
@@ -28,6 +46,9 @@ the policy says *what* any grant may do, where funds may go and how much.
 ## Setup
 
 Create an API key in the [partner dashboard](https://partners.near-intents.org/) and keep it out of git:
+
+> [!CAUTION]
+> The `naa_…` key identifies your backend. Never ship it to a browser, mobile app, prompt or log.
 
 ```sh
 # .env
@@ -374,7 +395,11 @@ The API is plain HTTP. `GET https://api.agentsonintents.com/openapi.json` has ev
 package are generated from that OpenAPI document, so to validate responses at runtime or to build
 a client in another language, generate it from the same document.
 
-## Contributing
+## Related
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). `src/generated/` is generated from the API's OpenAPI
-document and is not edited by hand. Security reports: [SECURITY.md](SECURITY.md).
+| Repository | |
+|---|---|
+| [api](https://github.com/NEAR-Intents-Agent-API/api) | The Agent API and partner dashboard |
+| [examples](https://github.com/NEAR-Intents-Agent-API/examples) | Runnable scripts for every flow in this README |
+| [skills](https://github.com/NEAR-Intents-Agent-API/skills) | Agent skills for building on the API in any language |
+| [demo](https://github.com/NEAR-Intents-Agent-API/demo) · [agent-connect](https://github.com/NEAR-Intents-Agent-API/agent-connect) | Full applications built on this SDK |
