@@ -293,7 +293,8 @@ USD budget charge released once; a new attempt needs a new idempotency key.
 `getOperationProof` returns an execution's audit trail with a transparency-log proof per event.
 `verifyOperationProof` checks it offline, without trusting the API: each `PROVEN` event's opening
 hashes to a leaf the checkpoint includes, the checkpoint carries the log's and the notary's
-signatures, and the opening describes that event. Pin the log origin yourself.
+signatures, and the opening describes that event of that agent. Pin the log origin yourself, and
+check that `agent_id` and `correlation_id` are the ones you asked for.
 
 ```ts
 const proof = await api.getOperationProof(agentId, correlationId);
@@ -307,6 +308,44 @@ evidence altered after it was committed, throws `NoteError` or `ProofError`. The
 TDX quote is not checked here: to tie the notary keys to attested code, verify the dstack
 attestation in `proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and
 compare its `report_data` with `verified.birthReportData`.
+
+Once the API holds an Intel Trust Authority token for the notary keys, `proof.notary.ita` carries
+it, and `verifyNotaryToken` makes that tie with only Intel's pinned root. The token must chain to
+the root as of its own issue time, since Intel rotates its signing key, with both revocation lists
+read now. Its runtime data must bind these keys, its nonce must be the SHA-256 of a checkpoint
+they signed, and Intel's claims must show a production TD that cannot be debugged. You must pin
+the app id, the compose hash and the measurements (MRTD and RTMR0 to RTMR2) you trust: without
+them a genuine TD running other code, another operator's deployment or a modified kernel would
+pass. `revocationUrls` names the two lists to fetch, read only from a chain that verifies to the
+root:
+
+```ts
+const ita = proof.notary?.ita;
+if (proof.notary && ita) {
+  const lists = new Map<string, Uint8Array>();
+  const chain = { root: ITA_ROOT_SHA256, keys: [ita.signing_key] };
+  for (const url of revocationUrls(ita.token, chain))
+    lists.set(url, new Uint8Array(await (await fetch(url)).arrayBuffer()));
+  const { claims, checks } = await verifyNotaryToken(
+    { ...proof.notary, ita },
+    {
+      root: ITA_ROOT_SHA256,
+      issuer: ITA_ISSUER,
+      revocationList: (url) => lists.get(url),
+      now: new Date(),
+      appId,
+      composeHash,
+      measurements,
+    },
+  );
+  const trusted = Object.values(checks).every(Boolean);
+}
+```
+
+A token that is malformed, does not chain to the pinned root, or whose chain was revoked or not
+valid at its issue time, throws `ItaVerificationError`; every other failure is a `false` entry in
+`checks`. A token is accepted at any age: the API refreshes it daily while the notary keys are
+live, so `claims.iat` older than a day or two means those keys are retired or the refresh stopped.
 
 ## Idempotency
 
@@ -383,7 +422,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Funding and recovery | `deposit`, `recover` |
 | Identity signing (the policy's `sign` rule lists the recipients; needs a grant) | `sign` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `verifyNotaryToken`, `revocationUrls` |
 
 `getPartnerQuota()` reports how many agents and API keys you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,

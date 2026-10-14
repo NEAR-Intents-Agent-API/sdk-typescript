@@ -11,6 +11,16 @@ export {
   AgentApiRequestError,
   AgentApiResponseTooLargeError,
 } from "./errors.js";
+export {
+  ITA_ISSUER,
+  ITA_ROOT_SHA256,
+  ItaVerificationError,
+  type Measurements,
+  type NotaryTokenOptions,
+  revocationUrls,
+  type TokenNotary,
+  verifyNotaryToken,
+} from "./generated/transparency/ita-token.js";
 export { NoteError } from "./generated/transparency/note.js";
 export {
   type OperationProofDocument,

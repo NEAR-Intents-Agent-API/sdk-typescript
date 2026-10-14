@@ -38,7 +38,13 @@ function proofDocument(): OperationProofDocument {
   const logSecret = ed25519.utils.randomSecretKey();
   const notarySecret = ed25519.utils.randomSecretKey();
   const opening = encodeAuditOpening(
-    { action: event.action, resourceId: correlationId, createdAt: event.created_at, evidenceHash },
+    {
+      action: event.action,
+      agentId,
+      resourceId: correlationId,
+      createdAt: event.created_at,
+      evidenceHash,
+    },
     new Uint8Array(32).fill(7),
   );
   const checkpoint = formatCheckpoint({
@@ -55,6 +61,7 @@ function proofDocument(): OperationProofDocument {
   const notaryPublic = ed25519.getPublicKey(notarySecret);
   const address = signingAddress(logPublic, notaryPublic);
   return {
+    agent_id: agentId,
     correlation_id: correlationId,
     origin,
     notary: {
@@ -83,6 +90,7 @@ test("a proof the log and notary signed verifies offline and opens to its event"
   assert.equal(verified.proven.length, 1);
   assert.deepEqual(verified.proven[0]?.fields, {
     action: event.action,
+    agentId,
     createdAt: event.created_at,
     evidenceHash,
     resourceId: correlationId,
@@ -109,6 +117,7 @@ test("forged logs, events, openings and notary keys the birth does not bind are 
   const otherBirth = { ...notary.birth, report_data: "0".repeat(128) };
   const forgeries: [OperationProofDocument, typeof NoteError | typeof ProofError][] = [
     [{ ...document, origin: "api.other.example/log" }, NoteError],
+    [{ ...document, agent_id: "b".repeat(64) }, NoteError],
     [{ ...document, events: [{ ...proven, action: "execute.failed" }] }, NoteError],
     [
       {

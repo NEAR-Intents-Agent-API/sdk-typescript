@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- `OperationProof.notary` adds `ita`: Intel Trust Authority's token for a quote that binds the
+  notary keys, refreshed daily while they are live, or null until the API holds one.
+  `verifyNotaryToken` checks it offline against Intel's pinned root as of the token's issue time,
+  and requires the app id, compose hash and measurements to pin. `revocationUrls` names the
+  revocation lists to fetch first, from a chain verified to the root, and `ItaVerificationError`
+  marks a token that is malformed or does not chain. The verifier is generated from the API's
+  transparency package and adds the `jose`, `@peculiar/asn1-schema` and `@peculiar/asn1-x509`
+  dependencies.
+- `verifyOperationProof` also requires every proven event to name the proof's `agent_id`, which
+  `OperationProof` and `OperationProofDocument` now carry.
+- `ExecutionDetails` adds the optional `policy_record` for agent deletion: the relayed
+  `delete_wallet_policy` that refunds the policy's storage deposit to `refund_to`, with its status.
+
 ## 0.4.1
 
 - Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier

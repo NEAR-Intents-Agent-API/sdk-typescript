@@ -332,7 +332,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description Requires `X-Grant-Token` for a live grant; the account policy must allow `swap`. With `dry: true` returns a quote and needs no `Idempotency-Key`.
+         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`.
          */
         post: operations["swap"];
         delete?: never;
@@ -426,7 +426,7 @@ export interface paths {
         put?: never;
         /**
          * Get a deposit address that funds the agent from another chain
-         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
+         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive; an address still unpaid a day after `details.expires_at` ends `FAILED` with `deposit_expired`. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
          */
         post: operations["deposit"];
         delete?: never;
@@ -1205,6 +1205,14 @@ export interface components {
             refund_to?: string | null;
             refund_tx_hash?: string | null;
             failure_reason?: string | null;
+            policy_record?: {
+                /** @enum {string} */
+                status: "pending" | "deleted" | "absent" | "kept" | "unknown";
+                transaction_hash: string | null;
+                refund_to: string | null;
+                storage_deposit_yocto: string | null;
+                reason?: string;
+            };
         } & {
             [key: string]: unknown;
         };
@@ -1759,6 +1767,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        agent_id: string;
                         correlation_id: string;
                         origin: string;
                         notary: {
@@ -1774,6 +1783,28 @@ export interface operations {
                                     notary_key: string;
                                 } | null;
                             };
+                            ita: {
+                                token: string;
+                                nonce: string;
+                                checkpoint: string;
+                                verifier_nonce: {
+                                    val: string;
+                                    iat: string;
+                                    signature: string;
+                                };
+                                runtime_data: string;
+                                event_log: {
+                                    /** @constant */
+                                    imr: 3;
+                                    event_type: number;
+                                    digest: string;
+                                    event: string;
+                                    event_payload: string;
+                                }[];
+                                signing_key: {
+                                    [key: string]: unknown;
+                                };
+                            } | null;
                         } | null;
                         events: {
                             action: string;
