@@ -91,7 +91,7 @@ const policy: Policy = {
   actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw"
   confidential: false, // true also allows private balances and confidential routes
   owner_approval: false, // true makes every outgoing action wait for the owner's vote
-  assets: "any", // or the exact asset ids the agent may touch
+  assets: "any", // or the exact asset ids the agent may spend
   limits: {
     // optional per-asset caps in atomic units: per_transaction, hourly, daily, monthly
     per_transaction: { "nep141:wrap.near": "1000000000000000000000000" },
