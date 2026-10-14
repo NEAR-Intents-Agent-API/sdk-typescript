@@ -352,7 +352,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Requires `X-Grant-Token` for a live grant; the account policy must allow `withdraw` and the destination. With `dry: true` previews fees and needs no `Idempotency-Key`.
+         * @description A live withdraw requires `X-Grant-Token` for a live grant, and the account policy must allow `withdraw` and the destination. With `dry: true` it previews fees and needs only the API key: no grant and no `Idempotency-Key`. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -3354,6 +3354,8 @@ export interface operations {
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
+                    wrapped?: boolean;
+                    /** @default false */
                     async?: boolean;
                     /** @default false */
                     dry?: boolean;
@@ -3909,6 +3911,8 @@ export interface operations {
                         memo?: string;
                         /** @default false */
                         confidential?: boolean;
+                        /** @default false */
+                        wrapped?: boolean;
                         /** @default false */
                         async?: boolean;
                         /** @default false */
