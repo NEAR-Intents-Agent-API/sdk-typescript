@@ -38,7 +38,13 @@ function proofDocument(): OperationProofDocument {
   const logSecret = ed25519.utils.randomSecretKey();
   const notarySecret = ed25519.utils.randomSecretKey();
   const opening = encodeAuditOpening(
-    { action: event.action, resourceId: correlationId, createdAt: event.created_at, evidenceHash },
+    {
+      agentId,
+      action: event.action,
+      resourceId: correlationId,
+      createdAt: event.created_at,
+      evidenceHash,
+    },
     new Uint8Array(32).fill(7),
   );
   const checkpoint = formatCheckpoint({
@@ -55,6 +61,7 @@ function proofDocument(): OperationProofDocument {
   const notaryPublic = ed25519.getPublicKey(notarySecret);
   const address = signingAddress(logPublic, notaryPublic);
   return {
+    agent_id: agentId,
     correlation_id: correlationId,
     origin,
     notary: {
@@ -82,6 +89,7 @@ test("a proof the log and notary signed verifies offline and opens to its event"
   assert.equal(verified.birthReportData, document.notary?.birth.report_data);
   assert.equal(verified.proven.length, 1);
   assert.deepEqual(verified.proven[0]?.fields, {
+    agentId,
     action: event.action,
     createdAt: event.created_at,
     evidenceHash,
@@ -97,7 +105,7 @@ test("forged logs, events, openings and notary keys the birth does not bind are 
   const [proven] = document.events;
   assert.ok(proven?.proof && document.notary);
   const other = encodeAuditOpening(
-    { action: event.action, resourceId: correlationId, createdAt: event.created_at },
+    { agentId, action: event.action, resourceId: correlationId, createdAt: event.created_at },
     new Uint8Array(32).fill(8),
   );
   const swapped = proven.proof.replace(
