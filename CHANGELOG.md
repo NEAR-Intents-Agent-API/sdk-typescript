@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0
+
+- Withdrawals: `wrapped?: boolean` on the request. NEAR withdrawn to chain `near` arrives as native
+  NEAR; `wrapped: true` delivers wNEAR instead.
+- Status `details` add `requested_min_amount_out`, `requested_asset` and `delivered` (the asset a
+  withdrawal actually delivered), plus `policy_record` (status, refund and storage deposit of the
+  on-chain policy record).
+- `verifyOperationProof` also binds the proof to its agent: each event's signed `agent_id` must
+  match the document's, and the caller checks `agent_id` and `correlation_id` are the ones asked for.
+  `AuditProof` documents carry `agent_id`.
+- `AgentApiError` docs state the strict `retryable` contract: `true` means the identical request
+  under the same `Idempotency-Key` can succeed; `false` never proves nothing was sent.
+- Expired unpaid deposits end `FAILED` with `deposit_expired`.
+
 ## 0.4.1
 
 - Each `AuditProof` adds `evidence`, the result the event recorded as canonical JSON. The verifier
