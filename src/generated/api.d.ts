@@ -1201,6 +1201,9 @@ export interface components {
             memo?: string | null;
             min_amount?: string | null;
             min_amount_out?: string | null;
+            requested_min_amount_out?: string;
+            requested_asset?: string;
+            delivered?: string | null;
             expires_at?: string | null;
             refund_to?: string | null;
             refund_tx_hash?: string | null;
