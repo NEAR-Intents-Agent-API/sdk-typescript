@@ -9,6 +9,7 @@ import { verifyTlogProof } from "./tlog-proof.js";
 
 /** The `getOperationProof` response, as the API serves it. */
 export type OperationProofDocument = {
+  readonly agent_id: string;
   readonly correlation_id: string;
   readonly origin: string;
   readonly notary: {
@@ -54,7 +55,8 @@ export type VerifiedOperation = {
 /**
  * Checks an operation proof without trusting the API: every `PROVEN` event's opening hashes to a
  * leaf the checkpoint includes, the checkpoint carries both notary signatures, and the opening
- * describes this operation's event. The caller pins `origin`, and must still check
+ * describes this operation's event of this agent. The caller pins `origin`, checks that
+ * `agent_id` and `correlation_id` are the ones it asked for, and must still check
  * `birthReportData` against the notary's TDX quote, which is what ties the keys to attested code.
  */
 export function verifyOperationProof(
@@ -67,8 +69,7 @@ export function verifyOperationProof(
   const counts = { pending: 0, unlogged: 0 };
   const proven: ProvenEvent[] = [];
   for (const event of document.events)
-    if (event.status === "PROVEN")
-      proven.push(provenEvent(event, document.correlation_id, origin, keys));
+    if (event.status === "PROVEN") proven.push(provenEvent(event, document, origin, keys));
     else counts[unproven(event)] += 1;
   return { birthReportData: keys?.birthReportData ?? null, proven, ...counts };
 }
@@ -98,7 +99,7 @@ function unproven(event: ProofEvent): "pending" | "unlogged" {
 
 function provenEvent(
   event: ProofEvent,
-  correlationId: string,
+  document: OperationProofDocument,
   origin: string,
   keys: NotaryVerifiers | null,
 ): ProvenEvent {
@@ -114,7 +115,8 @@ function provenEvent(
   if (!verified.extra || !cosigned) throw new NoteError("proof carries no audit opening");
   const { fields } = decodeAuditOpening(verified.extra);
   if (
-    fields.resourceId !== correlationId ||
+    fields.agentId !== document.agent_id ||
+    fields.resourceId !== document.correlation_id ||
     fields.action !== event.action ||
     fields.createdAt !== event.created_at
   )
