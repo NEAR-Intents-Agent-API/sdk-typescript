@@ -62,4 +62,20 @@ jobs:
         run: |
           args=(--access public --tag "${{ steps.version.outputs.tag }}")
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          npm publish "${args[@]}"
+          if npm publish "${args[@]}"; then exit 0; fi
+          [ "$DRY_RUN" = "true" ] && exit 1
+          # The registry has answered a successful trusted publish with a spurious 401 (v0.5.0).
+          # Count the release as done only when the version is live and built from this commit.
+          name=$(node -p "require('./package.json').name")
+          version="${{ steps.version.outputs.version }}"
+          echo "::warning::npm publish reported an error; checking the registry for $name@$version"
+          for _ in $(seq 1 12); do
+            head=$(npm view "$name@$version" gitHead --prefer-online 2>/dev/null || true)
+            if [ "$head" = "$GITHUB_SHA" ]; then
+              echo "$name@$version is published from $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$name@$version is not on the registry from $GITHUB_SHA"
+          exit 1
