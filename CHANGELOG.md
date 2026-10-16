@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `getHistory` takes `include_unpaid?: boolean`. History now leaves out deposit addresses nothing
+  was paid into (open, expired, or closed by deletion) unless it is set; each stays readable through
+  `getStatus`.
+- Deposit addresses without an `amount` stay open 3 days (was 14). Each agent can be issued 100
+  addresses per rolling 24 hours (was 500 per partner); over that, `deposit_quota_exceeded`.
+- Deleting an agent is no longer refused by deposit addresses waiting for payment; the deletion
+  closes them as `FAILED` with `agent_deleted`.
+
 ## 0.5.0
 
 - Withdrawals: `wrapped?: boolean` on the request. NEAR withdrawn to chain `near` arrives as native

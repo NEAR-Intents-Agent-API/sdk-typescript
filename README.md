@@ -180,7 +180,9 @@ const deposit = await api.deposit(agentId, {
 // Send at least deposit.details.min_amount to deposit.details.deposit_address (with
 // deposit.details.memo if present) before deposit.details.expires_at, then poll
 // getStatus(deposit.correlation_id). Add `amount` (atomic units) for an exact deposit.
-// A failed or late deposit refunds into the agent's own balance (deposit.details.refund_to).
+// Without it the address stays open 3 days. A failed or late deposit refunds into the agent's
+// own balance (deposit.details.refund_to). Until something is paid in, getHistory lists the
+// address only with { include_unpaid: true }.
 
 const balances = await api.getBalances(agentId);
 ```

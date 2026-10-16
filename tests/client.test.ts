@@ -29,6 +29,9 @@ test("client preserves payload, places credentials and idempotency only in heade
   };
   await api.swap(agentId, body, { idempotencyKey: "same-logical-execution" });
   await api.getStatus("intent/with spaces", { waitMs: 30_000 });
+  await api.getHistory(agentId, { include_unpaid: true });
+  assert.equal(calls[2]?.url.pathname, `/v1/agents/${agentId}/history`);
+  assert.equal(calls[2]?.url.searchParams.get("include_unpaid"), "true");
   assert.equal(calls[0]?.url.pathname, `/v1/agents/${agentId}/swap`);
   assert.deepEqual(JSON.parse(String(calls[0]?.init.body)), body);
   const headers = new Headers(calls[0]?.init.headers);
