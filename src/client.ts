@@ -221,10 +221,13 @@ export class AgentApi {
     });
   }
 
-  /** An agent's intents and executions, newest first. */
+  /**
+   * An agent's intents and executions, newest first. Deposit addresses nothing was paid into are
+   * left out unless `include_unpaid` is set.
+   */
   getHistory(
     agentId: string,
-    query: { cursor?: string; limit?: number } = {},
+    query: { cursor?: string; limit?: number; include_unpaid?: boolean } = {},
     options: RequestOptions = {},
   ): Promise<HistoryPage> {
     return this.call(endpoints.getHistory, { params: { agent_id: agentId }, query, ...options });

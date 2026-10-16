@@ -67,7 +67,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List an agent's intents and executions, newest first */
+        /**
+         * List an agent's intents and executions, newest first
+         * @description Deposit addresses nothing was paid into, still open or already closed, are left out unless `include_unpaid=true`; read one by its `correlation_id` with `GET /v1/status`.
+         */
         get: operations["getHistory"];
         put?: never;
         post?: never;
@@ -426,7 +429,7 @@ export interface paths {
         put?: never;
         /**
          * Get a deposit address that funds the agent from another chain
-         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive; an address still unpaid a day after `details.expires_at` ends `FAILED` with `deposit_expired`. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
+         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive; without `amount` it stays open 3 days, and an address still unpaid a day after `details.expires_at` ends `FAILED` with `deposit_expired`. History lists an address only once something was paid into it. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
          */
         post: operations["deposit"];
         delete?: never;
@@ -1656,6 +1659,7 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
+                include_unpaid?: boolean;
             };
             header?: never;
             path: {
