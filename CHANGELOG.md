@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - `getHistory` takes `include_unpaid?: boolean`. History now leaves out deposit addresses nothing
   was paid into (open, expired, or closed by deletion) unless it is set; each stays readable through
