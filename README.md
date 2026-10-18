@@ -224,7 +224,9 @@ const done = await settled(execution.correlation_id);
 
 await assistant.transfer(agentId, { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" });
 // NEAR withdrawn to chain "near" arrives as native NEAR; add `wrapped: true` to deliver wNEAR.
-await assistant.withdraw(agentId, { asset: "nep141:wrap.near", amount: "1", chain: "near", recipient: "bob.near" });
+const withdrawal = { asset: "nep141:wrap.near", amount: "1", chain: "near", recipient: "bob.near" };
+const fees = await assistant.withdraw(agentId, { ...withdrawal, dry: true }); // preview, under its own key
+await assistant.withdraw(agentId, withdrawal);
 ```
 
 If the policy refuses, the call fails with a stable `code` such as `policy_action_denied`,
@@ -314,7 +316,11 @@ compare its `report_data` with `verified.birthReportData`.
 
 Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshield`, `deposit`)
 carries an `Idempotency-Key`. Omit it and the SDK generates one and returns it with the result as
-`result.idempotencyKey`. To survive a crash, create and store the key **before** sending:
+`result.idempotencyKey`. A withdrawal preview (`withdraw` with `dry: true`) carries one too: it
+needs the grant and a key, an identical preview under the same key replays its result for 60
+seconds, and each agent gets 20 previews per rolling 24 hours, failed ones included. A swap quote
+(`swap` with `dry: true`) needs neither. To survive a crash, create and store the key **before**
+sending:
 
 ```ts
 import { createIdempotencyKey } from "@near-intents-agent-api/sdk";
