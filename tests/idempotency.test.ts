@@ -74,7 +74,7 @@ test("each SDK write generates a request-local key and returns it without changi
   assert.notEqual(concurrent[0].idempotencyKey, concurrent[1].idempotencyKey);
 });
 
-test("quotes and non-idempotency endpoints generate no keys; recovery only forwards its original key", async () => {
+test("swap quotes and non-idempotency endpoints generate no keys; recovery only forwards its original key", async () => {
   const keys: Array<string | null> = [];
   const api = new AgentApi({
     baseUrl: "https://api.test",
@@ -86,7 +86,6 @@ test("quotes and non-idempotency endpoints generate no keys; recovery only forwa
   });
   const results = [
     await api.swap(agentId, { ...swap, dry: true }),
-    await api.withdraw(agentId, { ...withdraw, dry: true }),
     await api.getStatus(agentId),
     await api.getAgent(agentId),
     await api.submitIntent({
@@ -222,4 +221,26 @@ test("write failures retain the transmitted key and never retry automatically", 
       });
       assert.equal(calls, 1);
     });
+});
+
+test("withdrawal previews carry a key: the caller's, or a generated one returned with the quote", async () => {
+  const keys: Array<string | null> = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (_input, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      return Response.json({ dry: true, type: "withdraw", quote: {} });
+    },
+  });
+  const generated = await api.withdraw(agentId, { ...withdraw, dry: true });
+  assert.match(generated.idempotencyKey, /^[0-9a-f-]{36}$/);
+  assert.equal(keys[0], generated.idempotencyKey);
+  const passed = await api.withdraw(
+    agentId,
+    { ...withdraw, dry: true },
+    { idempotencyKey: "preview-key-1" },
+  );
+  assert.equal(passed.idempotencyKey, "preview-key-1");
+  assert.equal(keys[1], "preview-key-1");
 });

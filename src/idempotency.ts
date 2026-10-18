@@ -16,7 +16,8 @@ export function requestIdempotency(
   const dry =
     (endpoint === endpoints.swap || endpoint === endpoints.withdraw) &&
     (call.body as { dry?: boolean } | undefined)?.dry === true;
-  const keyed = Boolean(endpoint.idempotency) && !dry;
+  // A swap quote is keyless; a withdrawal preview is admitted only under a key, like the withdrawal.
+  const keyed = Boolean(endpoint.idempotency) && !(dry && endpoint === endpoints.swap);
   const idempotencyKey =
     keyed && endpoint !== endpoints.recover && call.idempotencyKey === undefined
       ? createIdempotencyKey()

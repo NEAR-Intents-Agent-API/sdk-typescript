@@ -391,12 +391,16 @@ export class AgentApi {
     return this.call(endpoints.swap, { params: { agent_id: agentId }, body: request, ...options });
   }
 
-  /** Withdraw to any supported chain. `dry: true` previews and needs no idempotency key. */
+  /**
+   * Withdraw to any supported chain. `dry: true` previews under the grant and an idempotency key,
+   * like a withdrawal: the SDK creates one unless passed. An identical preview under the same key
+   * replays its result for 60 seconds; after that, preview under a new key.
+   */
   withdraw(
     agentId: string,
     request: WithdrawRequest & { dry: true },
-    options?: RequestOptions,
-  ): Promise<QuoteResponse>;
+    options?: IdempotentOptions,
+  ): Promise<IdempotentResult<QuoteResponse>>;
   withdraw(
     agentId: string,
     request: WithdrawRequest,
@@ -406,7 +410,7 @@ export class AgentApi {
     agentId: string,
     request: WithdrawRequest,
     options: IdempotentOptions = {},
-  ): Promise<QuoteResponse | IdempotentResult<StatusResponseOf<"withdraw">>> {
+  ): Promise<IdempotentResult<QuoteResponse | StatusResponseOf<"withdraw">>> {
     return this.call(endpoints.withdraw, {
       params: { agent_id: agentId },
       body: request,

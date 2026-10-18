@@ -89,7 +89,7 @@ export interface paths {
         };
         /**
          * Prove an execution's audit trail from the attested transparency log
-         * @description Returns every retained audit event of one execution. A `PROVEN` event carries a `c2sp.org/tlog-proof@v1` that anyone can check offline: the opening in `extra` hashes to a leaf, the leaf is included in the checkpoint, and the checkpoint is signed by `notary`, whose keys the TDX quote in `notary.birth` binds. Each event's `evidence` is the result it recorded, including any settlement transaction hashes, and hashes to the opening's `evidenceHash`. Proofs use the latest checkpoint, so a recent event reads `PENDING` until the next one.
+         * @description Returns the retained audit events of one execution. A `PROVEN` event carries a `c2sp.org/tlog-proof@v1` inclusion proof; its evidence hashes to the opening's evidenceHash. The top-level checkpoint carries the log and notary signatures, bound to the notary's birth attestation. Send from_size from an independently trusted checkpoint and pass that checkpoint to verifyOperationProof: signatures alone do not reject a coordinated rollback. A server behind that checkpoint returns 409 transparency_checkpoint_behind. Consistency proves continuation from the trusted state, not response completeness or global freshness. A recent event reads PENDING until the next publication.
          */
         get: operations["getOperationProof"];
         put?: never;
@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description A live withdraw requires `X-Grant-Token` for a live grant, and the account policy must allow `withdraw` and the destination. With `dry: true` it previews fees and needs only the API key: no grant and no `Idempotency-Key`. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -1336,7 +1336,7 @@ export interface operations {
                     /** @constant */
                     type: "grant_issue";
                     agent_id: string;
-                    label: string;
+                    label: string & (unknown & unknown);
                     credential: string;
                     /** Format: date-time */
                     expires_at: string;
@@ -1757,7 +1757,9 @@ export interface operations {
     };
     getOperationProof: {
         parameters: {
-            query?: never;
+            query?: {
+                from_size?: string;
+            };
             header?: never;
             path: {
                 agent_id: string;
@@ -1777,6 +1779,11 @@ export interface operations {
                         agent_id: string;
                         correlation_id: string;
                         origin: string;
+                        checkpoint: string | null;
+                        consistency: {
+                            from_size: string;
+                            hashes: string[];
+                        } | null;
                         notary: {
                             log_key: string;
                             notary_key: string;
@@ -1790,6 +1797,28 @@ export interface operations {
                                     notary_key: string;
                                 } | null;
                             };
+                            ita: {
+                                token: string;
+                                nonce: string;
+                                checkpoint: string;
+                                verifier_nonce: {
+                                    val: string;
+                                    iat: string;
+                                    signature: string;
+                                };
+                                runtime_data: string;
+                                event_log: {
+                                    /** @constant */
+                                    imr: 3;
+                                    event_type: number;
+                                    digest: string;
+                                    event: string;
+                                    event_payload: string;
+                                }[];
+                                signing_key: {
+                                    [key: string]: unknown;
+                                };
+                            } | null;
                         } | null;
                         events: {
                             action: string;

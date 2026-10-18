@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2
+
+- Withdrawal previews (`withdraw` with `dry: true`) now carry an `Idempotency-Key`, which the API
+  requires along with the grant. The SDK creates one unless `idempotencyKey` is passed and returns
+  it as `result.idempotencyKey`. An identical preview under the same key replays its result for 60
+  seconds; after that, preview under a new key. The API admits 20 previews per agent per rolling 24
+  hours, failed ones included (`withdraw_preview_limit_reached`). Swap quotes still need no key.
+- Generated wire types follow the deployed API: the operation proof response adds `checkpoint` and
+  `consistency`. `getOperationProof` and `verifyOperationProof` are unchanged.
+
 ## 0.5.1
 
 - `getHistory` takes `include_unpaid?: boolean`. History now leaves out deposit addresses nothing
