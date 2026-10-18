@@ -458,7 +458,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/agents/{agent_id}/sign": {
+    "/v1/agents/{agent_id}/native/near/sign-message": {
         parameters: {
             query?: never;
             header?: never;
@@ -469,9 +469,149 @@ export interface paths {
         put?: never;
         /**
          * Sign an identity challenge with the agent's NEAR key (NEP-413)
-         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `sign.recipients`. `message` is a canonical `near-intents-agent-api.identity.v1` challenge whose `audience` equals `recipient`; nothing else is ever signed. The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`.
+         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `native.near.sign_message`. `message` is a canonical `near-intents-agent-api.identity.v1` challenge whose `audience` equals `recipient`; nothing else is ever signed. The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`. Recorded in history as type `native`.
          */
-        post: operations["sign"];
+        post: operations["nativeNearSignMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/near/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send native NEAR from the agent's NEAR account
+         * @description Needs `native.near.transfer`. Sends from the agent's NEAR account (`wallet.near_account_id`), outside NEAR Intents. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. OutLayer still applies the policy's `assets` (wNEAR covers native NEAR), `limits` and `max_actions_per_hour`. A retry with the same `Idempotency-Key` returns the same request and never sends twice.
+         */
+        post: operations["nativeNearTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/near/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Call a NEAR contract from the agent's NEAR account
+         * @description Needs `receiver_id` listed in `native.near.call`. The NEAR Intents contracts are never callable (`native_contract_forbidden`). Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Listing a token contract lets the agent send that token anywhere from its NEAR account. A retry with the same `Idempotency-Key` returns the same request and never calls twice.
+         */
+        post: operations["nativeNearCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/evm/sign-typed-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign EIP-712 typed data with the agent's EVM key
+         * @description Needs the typed data's `domain` listed in `native.evm.sign_typed_data`: every field the domain carries (name, version, chainId, verifyingContract, salt) must match one listed entry exactly, and an extra or missing field is another domain. `types.EIP712Domain` may be omitted, and the API then derives it; when sent, it must declare exactly the domain's fields in EIP-712 order with their standard types, since the signed digest covers only declared fields. Signs as `wallet.evm_account_id`, the same address on every EVM chain. Typed data can authorize transfers (EIP-3009) and approvals (EIP-2612 Permit) of anything that address holds. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeEvmSignTypedData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/evm/sign-message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign an EIP-191 message with the agent's EVM key
+         * @description Needs `native.evm.sign_message`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeEvmSignMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/evm/sign-transaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a serialized EVM transaction with the agent's EVM key
+         * @description Needs `native.evm.sign_transaction`, which gives full control of the EVM address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeEvmSignTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/solana/sign-message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign an off-chain message with the agent's Solana key
+         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeSolanaSignMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/solana/sign-transaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a Solana transaction message with the agent's Solana key
+         * @description Needs `native.solana.sign_transaction`, which gives full control of the Solana address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeSolanaSignTransaction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -648,8 +788,27 @@ export interface components {
                     end: string;
                 }[];
             };
-            sign?: {
-                recipients: string[];
+            native?: {
+                near: {
+                    sign_message: string[];
+                    transfer: boolean;
+                    call: string[];
+                };
+                evm: {
+                    sign_typed_data: {
+                        name?: string;
+                        version?: string;
+                        chain_id?: number;
+                        verifying_contract?: string;
+                        salt?: string;
+                    }[];
+                    sign_message: boolean;
+                    sign_transaction: boolean;
+                };
+                solana: {
+                    sign_message: boolean;
+                    sign_transaction: boolean;
+                };
             };
         };
         GenerateIntentResponse: {
@@ -1157,6 +1316,38 @@ export interface components {
             /** @constant */
             type: "deposit";
             details: components["schemas"]["ExecutionDetails"];
+        } | {
+            correlation_id: string;
+            agent_id: string | null;
+            /** @enum {string} */
+            status: "PENDING_SIGNATURE" | "QUEUED" | "PENDING_APPROVAL" | "PENDING_DEPOSIT" | "PROCESSING" | "SUCCESS" | "REFUNDED" | "FAILED" | "UNCERTAIN" | "NEEDS_REVIEW";
+            failure_code: string | null;
+            created_at: string;
+            updated_at: string;
+            dispatch_committed_at: string | null;
+            grant: {
+                id: string;
+                label: string;
+            } | null;
+            /** @constant */
+            type: "native";
+            details: {
+                /** @enum {string} */
+                method: "near_sign_message" | "near_transfer" | "near_call" | "evm_sign_typed_data" | "evm_sign_message" | "evm_sign_transaction" | "solana_sign_message" | "solana_sign_transaction";
+                /** @enum {string} */
+                chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                account_id: string | null;
+                target: string | null;
+                amount: string | null;
+                method_name: string | null;
+                primary_type: string | null;
+                request_sha256: string;
+                signature: string | null;
+                tx_hash: string | null;
+                provider_request_id: string | null;
+                provider_status: string | null;
+                failure_reason: string | null;
+            };
         };
         GrantView: {
             grant_id: string;
@@ -1240,6 +1431,8 @@ export interface components {
             wallet: {
                 wallet_id: string;
                 near_account_id: string;
+                evm_account_id: string | null;
+                solana_account_id: string | null;
             } | null;
             created_at: string;
             cooldowns: {
@@ -2118,6 +2311,8 @@ export interface operations {
                     "application/json": {
                         wallet_id: string;
                         near_account_id: string;
+                        evm_account_id: string | null;
+                        solana_account_id: string | null;
                     };
                 };
             };
@@ -4070,7 +4265,7 @@ export interface operations {
             };
         };
     };
-    sign: {
+    nativeNearSignMessage: {
         parameters: {
             query?: never;
             header?: never;
@@ -4100,12 +4295,789 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        correlation_id: string;
                         near_account_id: string;
                         /** Format: starts_with */
                         public_key: string;
                         signature: string;
                         nonce: string;
                         recipient: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeNearTransfer: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable key for one logical request. Replays with the same key and body return the original result; a different body is refused with `idempotency_conflict`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    to: string;
+                    amount: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeNearCall: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable key for one logical request. Replays with the same key and body return the original result; a different body is refused with `idempotency_conflict`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    receiver_id: string;
+                    method_name: string;
+                    args?: {
+                        [key: string]: unknown;
+                    };
+                    args_base64?: string;
+                    gas?: string;
+                    deposit?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeEvmSignTypedData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    chain: "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood";
+                    typed_data: {
+                        domain: {
+                            [key: string]: unknown;
+                        };
+                        types: {
+                            [key: string]: {
+                                name: string;
+                                type: string;
+                            }[];
+                        };
+                        primaryType: string;
+                        message: {
+                            [key: string]: unknown;
+                        };
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeEvmSignMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    chain: "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood";
+                    message: string;
+                    /**
+                     * @default utf8
+                     * @enum {string}
+                     */
+                    encoding?: "utf8" | "hex";
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeEvmSignTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    chain: "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood";
+                    unsigned_tx: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeSolanaSignMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: string;
+                    /**
+                     * @default utf8
+                     * @enum {string}
+                     */
+                    encoding?: "utf8" | "hex" | "base64";
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeSolanaSignTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    unsigned_tx: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
                     };
                 };
             };

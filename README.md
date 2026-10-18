@@ -233,6 +233,42 @@ If the policy refuses, the call fails with a stable `code` such as `policy_actio
 `policy_destination_denied`, `spend_budget_exceeded` or `insufficient_balance`; the error says which
 layer refused.
 
+## Native accounts
+
+Besides its NEAR Intents balance, the agent has its own NEAR account and EVM and Solana addresses
+(`wallet.near_account_id`, `wallet.evm_account_id`, `wallet.solana_account_id`). The policy's
+optional `native` block switches each method on separately; omitted, every one is off:
+
+```ts
+policy: {
+  ...current.policy,
+  native: {
+    near: { sign_message: ["app.example.near"], transfer: false, call: [] },
+    evm: {
+      // Typed data only under these EIP-712 domains, matched field for field.
+      sign_typed_data: [{ name: "Exchange", version: "1", chain_id: 1337, verifying_contract: "0x0000000000000000000000000000000000000000" }],
+      sign_message: false,
+      sign_transaction: false,
+    },
+    solana: { sign_message: false, sign_transaction: false },
+  },
+},
+```
+
+```ts
+const signed = await assistant.nativeEvmSignTypedData(agentId, {
+  chain: "hyperevm",
+  typed_data: { domain, types, primaryType: "Agent", message }, // types.EIP712Domain may be omitted
+});
+await assistant.nativeNearTransfer(agentId, { to: "bob.near", amount: "1000000000000000000000" });
+```
+
+Native methods skip `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval`: a
+signed EVM or Solana transaction, or typed data such as a permit, can move everything at that
+address. NEAR transfers and calls take an idempotency key like other actions; every native request
+is recorded in history as type `native`. The NEAR Intents contracts are never a signing recipient
+or call target.
+
 ## Change the rules
 
 A policy change is one owner signature over the complete new policy. Read it, edit it, keep the
@@ -389,7 +425,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
-| Identity signing (the policy's `sign` rule lists the recipients; needs a grant) | `sign` |
+| The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignTransaction`, `nativeSolanaSignMessage`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
 | Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 

@@ -13,11 +13,17 @@ import type {
   BalancesView,
   ContainmentView,
   DepositRequest,
+  EvmSignMessageRequest,
+  EvmSignTransactionRequest,
+  EvmSignTypedDataRequest,
   GenerateIntentRequest,
   GenerateIntentResponseOf,
   GrantView,
   HistoryPage,
   IntentType,
+  NativeSignature,
+  NearCallRequest,
+  NearTransferRequest,
   NetworkView,
   OperationProof,
   PartnerQuotaView,
@@ -28,6 +34,8 @@ import type {
   ScheduledPage,
   Signature,
   SignRequest,
+  SolanaSignMessageRequest,
+  SolanaSignTransactionRequest,
   StatusResponse,
   StatusResponseOf,
   SubmitIntentRequest,
@@ -483,13 +491,116 @@ export class AgentApi {
     });
   }
 
+  // ------------------------------------------------------------------------------------ native
+  // The agent's own NEAR, EVM and Solana keys outside NEAR Intents. Each method needs a grant
+  // token, an unfrozen agent and its switch in the policy's `native` block; every request is
+  // recorded in history as type `native`.
+
   /**
-   * Signs a canonical identity challenge with the agent's NEAR key (NEP-413). Needs a grant token
-   * and a policy whose `sign.recipients` lists the recipient. Never signs for `intents.near` or
+   * Signs a canonical identity challenge with the agent's NEAR key (NEP-413). The policy's
+   * `native.near.sign_message` must list the recipient. Never signs for `intents.near` or
    * `intents.far`.
    */
-  sign(agentId: string, request: SignRequest, options: RequestOptions = {}): Promise<Signature> {
-    return this.call(endpoints.sign, {
+  nativeNearSignMessage(
+    agentId: string,
+    request: SignRequest,
+    options: RequestOptions = {},
+  ): Promise<Signature> {
+    return this.call(endpoints.nativeNearSignMessage, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Sends native NEAR from the agent's NEAR account. Needs `native.near.transfer`. */
+  nativeNearTransfer(
+    agentId: string,
+    request: NearTransferRequest,
+    options: IdempotentOptions = {},
+  ): Promise<IdempotentResult<StatusResponseOf<"native">>> {
+    return this.call(endpoints.nativeNearTransfer, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /**
+   * Calls a NEAR contract from the agent's NEAR account. `native.near.call` must list
+   * `receiver_id`; the NEAR Intents contracts are never callable.
+   */
+  nativeNearCall(
+    agentId: string,
+    request: NearCallRequest,
+    options: IdempotentOptions = {},
+  ): Promise<IdempotentResult<StatusResponseOf<"native">>> {
+    return this.call(endpoints.nativeNearCall, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Signs EIP-712 typed data as `wallet.evm_account_id`. Needs `native.evm.sign_typed_data`. */
+  nativeEvmSignTypedData(
+    agentId: string,
+    request: EvmSignTypedDataRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeEvmSignTypedData, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Signs a personal message (EIP-191) as `wallet.evm_account_id`. Needs `native.evm.sign_message`. */
+  nativeEvmSignMessage(
+    agentId: string,
+    request: EvmSignMessageRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeEvmSignMessage, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Signs a raw EVM transaction; nothing is broadcast. Needs `native.evm.sign_transaction`. */
+  nativeEvmSignTransaction(
+    agentId: string,
+    request: EvmSignTransactionRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeEvmSignTransaction, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Signs a message as `wallet.solana_account_id`. Needs `native.solana.sign_message`. */
+  nativeSolanaSignMessage(
+    agentId: string,
+    request: SolanaSignMessageRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeSolanaSignMessage, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /** Signs a Solana transaction; nothing is broadcast. Needs `native.solana.sign_transaction`. */
+  nativeSolanaSignTransaction(
+    agentId: string,
+    request: SolanaSignTransactionRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeSolanaSignTransaction, {
       params: { agent_id: agentId },
       body: request,
       ...options,
