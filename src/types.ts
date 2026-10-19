@@ -102,5 +102,16 @@ export type TransferRequest = RequestBody<"transfer">;
 export type BalanceMoveRequest = RequestBody<"shield">;
 export type DepositRequest = RequestBody<"deposit">;
 export type RecoverRequest = RequestBody<"recover">;
-export type SignRequest = RequestBody<"sign">;
-export type Signature = Success<"sign">;
+
+// ---- Native: the agent's own NEAR, EVM and Solana keys outside NEAR Intents
+export type SignRequest = RequestBody<"nativeNearSignMessage">;
+export type Signature = Success<"nativeNearSignMessage">;
+export type NearTransferRequest = RequestBody<"nativeNearTransfer">;
+export type NearCallRequest = RequestBody<"nativeNearCall">;
+export type EvmSignTypedDataRequest = RequestBody<"nativeEvmSignTypedData">;
+export type EvmSignMessageRequest = RequestBody<"nativeEvmSignMessage">;
+export type EvmSignTransactionRequest = RequestBody<"nativeEvmSignTransaction">;
+export type SolanaSignMessageRequest = RequestBody<"nativeSolanaSignMessage">;
+export type SolanaSignTransactionRequest = RequestBody<"nativeSolanaSignTransaction">;
+/** An EVM or Solana signature and the address that made it. */
+export type NativeSignature = Success<"nativeEvmSignTypedData">;

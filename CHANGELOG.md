@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.3
+
+- Breaking: `sign` is replaced by eight `native*` methods for the agent's own keys outside NEAR
+  Intents: `nativeNearSignMessage` (the former `sign`, same request and response),
+  `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`,
+  `nativeEvmSignTransaction`, `nativeSolanaSignMessage` and `nativeSolanaSignTransaction`. The API
+  no longer serves `/sign`. Each method needs a grant token, an unfrozen agent and its switch in
+  the policy's optional `native` block, which replaces `sign: { recipients }` (now
+  `native.near.sign_message`); omitted, every method is off. NEAR transfer and call take an
+  `Idempotency-Key`; every request is recorded in history as type `native`.
+- `native.evm.sign_typed_data` lists EIP-712 domains (`name`, `version`, `chain_id`,
+  `verifying_contract`, `salt`); a request's `domain` must match one entry field for field.
+  `types.EIP712Domain` may be omitted, and the API derives it.
+- The agent's `wallet` adds `evm_account_id` (one address on every EVM chain) and
+  `solana_account_id`, null until the provider has reported them.
+
 ## 0.5.2
 
 - Withdrawal previews (`withdraw` with `dry: true`) now carry an `Idempotency-Key`, which the API
