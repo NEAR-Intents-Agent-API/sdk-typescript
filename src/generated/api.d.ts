@@ -335,7 +335,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account gets no quote. The spending rules never refuse a dry swap: each one a live swap would fail (schedule, USD budget, per-asset limits) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
+         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote. The spending rules never refuse a dry swap: each one a live swap would fail (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
          */
         post: operations["swap"];
         delete?: never;
@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (the provider's estimate, when stated in the withdrawn asset) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour) beside `high_fee` (above 5%) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (the provider's estimate, when stated in the withdrawn asset) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) beside `high_fee` (above 5%) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -3513,7 +3513,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
@@ -3651,7 +3651,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;

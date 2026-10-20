@@ -6,11 +6,12 @@
   windows), `fee` (`{ amount_usd, percent }` or null) and `warnings`. A warning is `high_fee` (above
   5%), `asset_delivered_as_is` (a non-USDC asset withdrawn to `hypercore`) or a spending rule the
   live request would fail, under the code that request would get: `policy_schedule_denied` (with
-  `available_at`), `spend_price_unavailable`, `spend_budget_exceeded`, `policy_limit_exceeded` or
-  `policy_action_limit_exceeded`. The spending rules never refuse a dry run; only the live request is
-  refused. An archived, deleted or frozen account gets no quote: a swap quote and a withdrawal
-  preview are refused with `agent_archived`, `agent_deleted` or `wallet_frozen`, reach no provider
-  and use no attempt. Every preview that reaches the provider uses one of the 20 daily attempts,
+  `available_at`), `spend_price_unavailable`, `spend_budget_exceeded`, `policy_limit_exceeded`,
+  `policy_action_limit_exceeded` or `policy_usage_unavailable` (unreconciled history keeps the
+  limits from being judged). The spending rules never refuse a dry run; only the live request is
+  refused. An archived, deleted or frozen account, or one whose applied policy does not parse, gets
+  no quote: a swap quote and a withdrawal preview are refused with `agent_archived`,
+  `agent_deleted`, `wallet_frozen` or `policy_not_ready`, reach no provider and use no attempt. Every preview that reaches the provider uses one of the 20 daily attempts,
   rule warning or not.
 - A `native.evm.sign_typed_data` entry may add `primary_types`, so the domain signs only those
   message types. Native details add `domain` and `message_json` (the signed message as canonical
