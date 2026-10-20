@@ -468,8 +468,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Sign an identity challenge with the agent's NEAR key (NEP-413)
-         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `native.near.sign_message`. `message` is a canonical `near-intents-agent-api.identity.v1` challenge whose `audience` equals `recipient`; nothing else is ever signed. The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`. Recorded in history as type `native`.
+         * Sign a NEP-413 message with the agent's NEAR key
+         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `native.near.sign_message`. Takes what a dApp's `signMessage({ message, recipient, nonce })` takes: `message` (the text to sign, `encoding` `hex` signs the UTF-8 text the bytes decode to), the relying party's base64 32-byte `nonce` and `recipient`. Returns `near_account_id`, `public_key` and the base64 `signature` over the NEP-413 payload, which the API checks before it answers. `callbackUrl` is not supported: the provider signs without one. The relying party must still check `nonce`, `recipient` and `public_key` (a full-access key of `near_account_id`, once that account exists on chain). The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`. Recorded in history as type `native`, with the recipient.
          */
         post: operations["nativeNearSignMessage"];
         delete?: never;
@@ -4323,6 +4323,7 @@ export interface operations {
                      */
                     encoding?: "utf8" | "hex";
                     recipient: string;
+                    nonce: string;
                 };
             };
         };

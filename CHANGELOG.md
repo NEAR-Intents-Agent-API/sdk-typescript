@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Breaking: `nativeNearSignMessage` is generic NEP-413 `signMessage`. The request is now
+  `{ message, recipient, nonce, encoding? }` with the relying party's base64 32-byte `nonce` (it is
+  required; the API no longer makes one), and `message` is signed as sent instead of having to be a
+  `near-intents-agent-api.identity.v1` challenge. `signature` in the response is base64 (it was
+  hex); `nonce` echoes the request's. `native.near.sign_message` lists recipients, which may be
+  NEAR accounts or domains such as `app.example.com`. `callbackUrl` is not supported. The API
+  checks the signature before it answers; the NEAR Intents contracts are still never recipients.
 - A dry `swap` or `withdraw` quote gains `spend` (`amount_usd` and the account's `budget`
   windows), `fee` (`{ amount_usd, percent }` or null) and `warnings`. A warning is `high_fee` (above
   5%), `asset_delivered_as_is` (a non-USDC asset withdrawn to `hypercore`) or a spending rule the
