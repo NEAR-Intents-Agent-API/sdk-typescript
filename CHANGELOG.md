@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - Breaking: `nativeNearSignMessage` is generic NEP-413 `signMessage`. The request is now
   `{ message, recipient, nonce, encoding? }` with the relying party's base64 32-byte `nonce` (it is
@@ -12,8 +12,8 @@
 - A dry `swap` or `withdraw` quote gains `spend` (`amount_usd` and the account's `budget`
   windows), `fee` (`{ amount_usd, percent }` or null) and `warnings`. A warning is `high_fee` (above
   5%), `asset_delivered_as_is` (a non-USDC asset withdrawn to `hypercore`) or a spending rule the
-  live request would fail, under the code that request would get: `policy_schedule_denied` (with
-  `available_at`), `spend_price_unavailable`, `spend_budget_exceeded`, `policy_limit_exceeded`,
+  live request would fail, under the code that request would get: `policy_asset_denied` (an asset the policy does
+  not list), `policy_schedule_denied` (with `available_at`), `spend_price_unavailable`, `spend_budget_exceeded`, `policy_limit_exceeded`,
   `policy_action_limit_exceeded` or `policy_usage_unavailable` (unreconciled history keeps the
   limits from being judged). The spending rules never refuse a dry run; only the live request is
   refused. An archived, deleted or frozen account, or one whose applied policy does not parse, gets

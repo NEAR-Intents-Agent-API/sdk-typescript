@@ -3513,7 +3513,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
@@ -3651,7 +3651,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
