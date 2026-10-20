@@ -335,7 +335,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`.
+         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote. The spending rules never refuse a dry swap: each one a live swap would fail (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
          */
         post: operations["swap"];
         delete?: never;
@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (the provider's estimate, when stated in the withdrawn asset) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) beside `high_fee` (above 5%) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -529,7 +529,7 @@ export interface paths {
         put?: never;
         /**
          * Sign EIP-712 typed data with the agent's EVM key
-         * @description Needs the typed data's `domain` listed in `native.evm.sign_typed_data`: every field the domain carries (name, version, chainId, verifyingContract, salt) must match one listed entry exactly, and an extra or missing field is another domain. `types.EIP712Domain` may be omitted, and the API then derives it; when sent, it must declare exactly the domain's fields in EIP-712 order with their standard types, since the signed digest covers only declared fields. Signs as `wallet.evm_account_id`, the same address on every EVM chain. Typed data can authorize transfers (EIP-3009) and approvals (EIP-2612 Permit) of anything that address holds. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs the typed data's `domain` listed in `native.evm.sign_typed_data`: every field the domain carries (name, version, chainId, verifyingContract, salt) must match one listed entry exactly, and an extra or missing field is another domain. A listed entry with `primary_types` signs only those message types, so `primaryType` must be one of them; without it any message type is signed. That narrows the kind of message, never its fields: destinations and amounts inside the message are not checked. `types.EIP712Domain` may be omitted, and the API then derives it; when sent, it must declare exactly the domain's fields in EIP-712 order with their standard types, since the signed digest covers only declared fields. `message` is at most 65536 bytes as canonical JSON. The record (status and history, type `native`) carries `details.domain`, the matched domain, and `details.message_json`, the signed message as canonical JSON. Signs as `wallet.evm_account_id`, the same address on every EVM chain. Typed data can authorize transfers (EIP-3009) and approvals (EIP-2612 Permit) of anything that address holds. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
          */
         post: operations["nativeEvmSignTypedData"];
         delete?: never;
@@ -801,6 +801,7 @@ export interface components {
                         chain_id?: number;
                         verifying_contract?: string;
                         salt?: string;
+                        primary_types?: string[];
                     }[];
                     sign_message: boolean;
                     sign_transaction: boolean;
@@ -1341,6 +1342,14 @@ export interface components {
                 amount: string | null;
                 method_name: string | null;
                 primary_type: string | null;
+                domain: {
+                    name?: string;
+                    version?: string;
+                    chain_id?: number;
+                    verifying_contract?: string;
+                    salt?: string;
+                } | null;
+                message_json: string | null;
                 request_sha256: string;
                 signature: string | null;
                 tx_hash: string | null;
@@ -3494,6 +3503,21 @@ export interface operations {
                         quote: {
                             [key: string]: unknown;
                         };
+                        spend: {
+                            amount_usd: string | null;
+                            budget: components["schemas"]["BudgetView"];
+                        };
+                        fee: {
+                            amount_usd: string;
+                            percent: string;
+                        } | null;
+                        warnings: {
+                            /** @enum {string} */
+                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            detail: string;
+                            /** Format: date-time */
+                            available_at?: string;
+                        }[];
                     };
                 };
             };
@@ -3617,6 +3641,21 @@ export interface operations {
                         quote: {
                             [key: string]: unknown;
                         };
+                        spend: {
+                            amount_usd: string | null;
+                            budget: components["schemas"]["BudgetView"];
+                        };
+                        fee: {
+                            amount_usd: string;
+                            percent: string;
+                        } | null;
+                        warnings: {
+                            /** @enum {string} */
+                            code: "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            detail: string;
+                            /** Format: date-time */
+                            available_at?: string;
+                        }[];
                     };
                 };
             };
