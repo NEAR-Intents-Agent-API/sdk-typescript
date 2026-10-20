@@ -497,9 +497,10 @@ export class AgentApi {
   // recorded in history as type `native`.
 
   /**
-   * Signs a canonical identity challenge with the agent's NEAR key (NEP-413). The policy's
-   * `native.near.sign_message` must list the recipient. Never signs for `intents.near` or
-   * `intents.far`.
+   * NEP-413 `signMessage` with the agent's NEAR key: sign the `message`, `recipient` and base64
+   * 32-byte `nonce` a dApp sent, and hand it back `near_account_id`, `public_key` and the base64
+   * `signature`. The policy's `native.near.sign_message` must list the recipient. `callbackUrl` is
+   * not supported. Never signs for `intents.near` or `intents.far`.
    */
   nativeNearSignMessage(
     agentId: string,

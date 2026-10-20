@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Breaking: `nativeNearSignMessage` is generic NEP-413 `signMessage`. The request is now
+  `{ message, recipient, nonce, encoding? }` with the relying party's base64 32-byte `nonce` (it is
+  required; the API no longer makes one), and `message` is signed as sent instead of having to be a
+  `near-intents-agent-api.identity.v1` challenge. `signature` in the response is base64 (it was
+  hex); `nonce` echoes the request's. `native.near.sign_message` lists recipients, which may be
+  NEAR accounts or domains such as `app.example.com`. `callbackUrl` is not supported. The API
+  checks the signature before it answers; the NEAR Intents contracts are still never recipients.
+
 ## 0.5.3
 
 - Breaking: `sign` is replaced by eight `native*` methods for the agent's own keys outside NEAR
