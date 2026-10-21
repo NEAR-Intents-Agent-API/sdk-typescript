@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1
 
 - `AgentApiError` adds `minAmount`: on `amount_too_low`, the route's minimum in atomic units of
   the asset sent, when the provider states one (`errors[0].meta.min_amount`). A refusal recorded
@@ -13,6 +13,9 @@
 - A dry `withdraw` to any chain but `near` reports `fee: null`: its `quote.amount_out` is in the
   destination chain's asset, so compare `amount` with `amount_out` yourself. `high_fee` is judged
   only where `fee` is valued.
+- The account's `budget` windows (a quote's `spend.budget`, the policy view's `usage.budget`) count periods that
+  start when each cap is turned on, not a rolling window: `resets_at` is when the current period
+  ends and the whole cap is available again (`null` when uncapped). No type change.
 
 ## 0.6.0
 
