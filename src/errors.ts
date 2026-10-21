@@ -45,7 +45,8 @@ export class AgentApiResponseTooLargeError extends Error {
  * `availableAt` or Retry-After, including a server error whose request may have taken effect.
  * `false` says only that repeating will not help now, never that nothing was sent: a new key is
  * safe only after a refusal documented as sending nothing. A FAILED or REFUNDED status is not that
- * proof.
+ * proof. `minAmount`, on `amount_too_low`, is the route's minimum in atomic units of the asset
+ * sent, when the provider states one.
  */
 export class AgentApiError extends Error {
   readonly status: number;
@@ -54,6 +55,7 @@ export class AgentApiError extends Error {
   readonly detail: string | undefined;
   readonly retryable: boolean;
   readonly availableAt: string | undefined;
+  readonly minAmount: string | undefined;
   readonly requestId: string | undefined;
   readonly errors: ApiErrorObject[];
   readonly idempotencyKey: string | undefined;
@@ -68,6 +70,7 @@ export class AgentApiError extends Error {
     this.detail = first?.detail;
     this.retryable = first?.meta?.retryable ?? false;
     this.availableAt = first?.meta?.available_at;
+    this.minAmount = first?.meta?.min_amount;
     this.requestId = document?.meta?.request_id;
     this.errors = document?.errors ?? [];
     this.idempotencyKey = idempotencyKey;

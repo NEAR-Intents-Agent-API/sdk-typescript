@@ -373,8 +373,8 @@ operation. `recover` requires the original key. Quotes, reads and `submitIntent`
 ## Errors
 
 Failures throw `AgentApiError` with `status`, a stable snake_case `code` (branch on it, never on
-`title`), `retryable`, `availableAt`, `requestId`, the `errors` list and the transmitted
-`idempotencyKey`:
+`title`), `retryable`, `availableAt`, `minAmount`, `requestId`, the `errors` list and the
+transmitted `idempotencyKey`:
 
 ```ts
 import { AgentApiError } from "@near-intents-agent-api/sdk";
@@ -402,6 +402,10 @@ a recovery code, keep the original key and read the status. A `FAILED` or `REFUN
 proof that nothing was sent (a partial failure is `FAILED`): check its details and balances before
 deciding to send new work. An execution the
 provider may have received returns `UNCERTAIN`; keep polling its `correlation_id`.
+`minAmount` is set on `amount_too_low` when the provider states the route minimum: that minimum in
+atomic units of the asset sent, so quote at least that. A refusal recorded against an operation
+keeps it as `details.min_amount` on the operation's status, so a replay under the same key states
+it too.
 
 ## Options
 
