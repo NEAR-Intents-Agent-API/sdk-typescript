@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- `AgentApiError` adds `minAmount`: on `amount_too_low`, the route's minimum in atomic units of
+  the asset sent, when the provider states one (`errors[0].meta.min_amount`). A refusal recorded
+  against an operation keeps it as `details.min_amount` on the operation's status.
+- `getContainment` types its inventories: `grants.data` entries carry `grant_id`, `label`,
+  `owner_epoch`, `issued_at`, `expires_at`, `revoked_at`, `grant_record_current` and `findings`;
+  `pending_operations.data` entries carry `operation_id`, `kind`, the public `status` and
+  `failure_code` that `getStatus` reports (`UNCERTAIN`, `QUEUED`, …, not the stored lifecycle
+  word), `action`, `disposition`, `created_at` and `updated_at`.
+- A dry `withdraw` to any chain but `near` reports `fee: null`: its `quote.amount_out` is in the
+  destination chain's asset, so compare `amount` with `amount_out` yourself. `high_fee` is judged
+  only where `fee` is valued.
+
 ## 0.6.0
 
 - Breaking: `nativeNearSignMessage` is generic NEP-413 `signMessage`. The request is now

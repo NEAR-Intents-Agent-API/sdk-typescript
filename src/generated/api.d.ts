@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (the provider's estimate, when stated in the withdrawn asset) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) beside `high_fee` (above 5%) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` arrives as native NEAR; `wrapped: true` delivers wNEAR instead.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -709,6 +709,7 @@ export interface components {
                     retryable: boolean;
                     /** Format: date-time */
                     available_at?: string;
+                    min_amount?: string;
                 };
             }[];
             meta: {
@@ -2945,18 +2946,34 @@ export interface operations {
                             status: string;
                         } | null;
                         grants: {
-                            has_more: boolean;
-                            next_cursor: string | null;
                             data: {
-                                [key: string]: unknown;
+                                grant_id: string;
+                                label: string;
+                                owner_epoch: number;
+                                issued_at: string;
+                                expires_at: string;
+                                revoked_at: string | null;
+                                grant_record_current: boolean;
+                                findings: string[];
                             }[];
+                            next_cursor: string | null;
+                            has_more: boolean;
                         };
                         pending_operations: {
-                            has_more: boolean;
-                            next_cursor: string | null;
                             data: {
-                                [key: string]: unknown;
+                                operation_id: string;
+                                /** @enum {string} */
+                                kind: "execute" | "policy" | "native";
+                                /** @enum {string} */
+                                status: "PENDING_SIGNATURE" | "QUEUED" | "PENDING_APPROVAL" | "PENDING_DEPOSIT" | "PROCESSING" | "SUCCESS" | "REFUNDED" | "FAILED" | "UNCERTAIN" | "NEEDS_REVIEW";
+                                failure_code: string | null;
+                                action: string | null;
+                                disposition: string;
+                                created_at: string;
+                                updated_at: string;
                             }[];
+                            next_cursor: string | null;
+                            has_more: boolean;
                         };
                         provider_boundary: {
                             /** @constant */

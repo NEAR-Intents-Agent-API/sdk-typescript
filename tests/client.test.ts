@@ -152,7 +152,7 @@ test("client exposes JSON:API errors and handles non-JSON upstream failures", as
                     status: "409",
                     code: "policy_conflict",
                     title: "Conflict",
-                    meta: { retryable: false },
+                    meta: { retryable: false, min_amount: "150000" },
                   },
                 ],
                 meta: { request_id: "request-1" },
@@ -166,6 +166,7 @@ test("client exposes JSON:API errors and handles non-JSON upstream failures", as
       assert.equal(error.status, json ? 409 : 502);
       assert.equal(error.code, json ? "policy_conflict" : "http_error");
       assert.equal(error.requestId, json ? "request-1" : undefined);
+      assert.equal(error.minAmount, json ? "150000" : undefined);
       return true;
     });
   }
