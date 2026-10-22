@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- Breaking: withdrawals drop `wrapped`. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain
+  `near` always arrives as native NEAR, from the public or the confidential balance; there is no
+  wNEAR option. Sending `wrapped` is `validation_failed`, and `wrapped_unsupported` is gone.
+- Every amount that moves funds must be above zero, and a swap's two assets must differ; otherwise
+  `validation_failed`.
+- A transfer's `recipient` must be a valid NEAR account id, and a named account must exist on NEAR
+  (implicit ids need none), else `invalid_address`. When NEAR RPC cannot answer, the transfer fails
+  with `near_rpc_unavailable` (503, retryable) and nothing is sent.
+- A recipient that is not a valid address for its chain is `invalid_address` (400) before the
+  policy is read, for every execution.
+- A deposit with no address ten minutes after creation ends `FAILED` with
+  `deposit_address_missing`.
+- Status `details` add `request`: the request as admitted, in the request body's field names
+  (`origin_asset`, `destination_asset`, `asset`, `amount`, `min_amount_out`, `chain`, `recipient`,
+  `memo`, `confidential`).
+- `min_amount_out` is sent to the provider as the minimum output; the quote does not apply it. A
+  swap reported below it reads `NEEDS_REVIEW` with `amount_out_below_minimum`, never `SUCCESS`.
+- `native/evm/sign-transaction` accepts only one unsigned EIP-2718 typed or EIP-155 legacy
+  transaction for `chain`; `native/solana/sign-transaction` only one legacy or v0 transaction
+  message. Anything else is `validation_failed`.
+
 ## 0.6.1
 
 - `AgentApiError` adds `minAmount`: on `amount_too_low`, the route's minimum in atomic units of
