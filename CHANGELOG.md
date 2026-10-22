@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2
 
 - Breaking: withdrawals drop `wrapped`. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain
   `near` always arrives as native NEAR, from the public or the confidential balance; there is no
