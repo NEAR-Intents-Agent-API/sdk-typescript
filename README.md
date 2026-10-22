@@ -223,7 +223,7 @@ const execution = await assistant.swap(agentId, swap);
 const done = await settled(execution.correlation_id);
 
 await assistant.transfer(agentId, { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" });
-// NEAR withdrawn to chain "near" arrives as native NEAR; add `wrapped: true` to deliver wNEAR.
+// NEAR withdrawn to chain "near" always arrives as native NEAR, public or confidential.
 const withdrawal = { asset: "nep141:wrap.near", amount: "1", chain: "near", recipient: "bob.near" };
 const fees = await assistant.withdraw(agentId, { ...withdrawal, dry: true }); // preview, under its own key
 await assistant.withdraw(agentId, withdrawal);
