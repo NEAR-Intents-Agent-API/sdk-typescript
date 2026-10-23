@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- Regenerated API types: a dry swap or withdrawal (`QuoteResponse`) carries `owner_approval`,
+  true when the live request would wait in `PENDING_APPROVAL` for the owner.
+
 ## 0.7.0
 
 - Breaking: regenerated API types. Every error object has a required
