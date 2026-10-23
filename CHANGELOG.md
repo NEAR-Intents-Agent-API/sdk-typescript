@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0
+
+- Breaking: regenerated API types. Every error object has a required
+  `layer` (`request`, `auth`, `grant`, `policy`, `budget`, `balance`, `provider` or `api`).
+  `AgentApiError` adds `layer` (typed `ApiErrorLayer`, exported; `undefined` only when the
+  response was not an API error document) and `availableAmount` (`meta.available_amount` on
+  `insufficient_balance`). `retryable` is unchanged: true means the same Idempotency-Key can
+  succeed, and an absent flag proves nothing.
+- Breaking: three error codes are removed, with no aliases: `quote_unavailable` is
+  `provider_unavailable` (503, retryable when not recorded), `invalid_request` is
+  `validation_failed`, and `status_not_found` is `operation_not_found`. `route_unavailable` means
+  no route for this pair or amount; repeating the same request will not help.
+- New error code `provider_refused` (400, layer `provider`, not retryable): the provider refused
+  the request for a reason it states in `detail`, such as a deposit quote 1Click rejected in words
+  the API does not map to another code. Nothing was submitted or charged; change the request and
+  send it under a new key.
+- `listReleases()`, `getLatestRelease()` and `getRelease(version)` read the public
+  `/v1/releases` feed: each release's `version`, `status` (`announced`, `active`, `retired`,
+  `withdrawn`), `type`, `announced_at`, `effective_at`, `notice_hours`, `changes`,
+  `breaking_changes`, `action_required` and `compose_hash`. Read `action_required` and adapt
+  before `effective_at`.
+- Budget and limit refusals (`spend_budget_exceeded`, `spend_price_unavailable`,
+  `policy_limit_exceeded`, `policy_action_limit_exceeded`, `policy_usage_unavailable`) on a request
+  that runs now are plain refusals: no operation, no `FAILED` status, no charge. Retrying the same
+  key refuses again. Timelocked work is still judged when it dispatches.
+- Dry swap and withdrawal preview `warnings[].code` gains `policy_action_denied`,
+  `policy_destination_denied`, `unsupported_token`, `invalid_address` and `insufficient_balance`
+  (which carries `available_amount`). The withdrawal preview warns about the action and the
+  destination instead of refusing; the dry swap still needs no grant.
+- `getBalances` entries add `available_raw` (atomic) and `available` (exact units or null): the
+  balance minus queued or timelocked work not yet dispatched. `insufficient_balance` reports the
+  available figure. Queued requests claim the balance in the order they were admitted. Every
+  asset answers for itself: `nep141:wrap.near` and `nep141:native` are separate balances, and a
+  `near` request spends `nep141:wrap.near`.
+- Breaking: `details.amount_out` is present only on `SUCCESS`,
+  or on `REFUNDED` after a partial fill. Before that, read the new `details.expected_amount_out`.
+- A withdrawal preview refused before quoting gives its daily attempt back;
+  outages and uncertain attempts stay counted.
+- An unpaid deposit ends `FAILED` with `deposit_expired` one day after `expires_at`; a deposit with
+  a known deposit tx or amount never expires. A late payment is refunded to `refund_to`.
+
 ## 0.6.2
 
 - Breaking: withdrawals drop `wrapped`. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain
