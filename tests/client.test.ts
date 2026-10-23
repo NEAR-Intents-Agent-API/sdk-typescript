@@ -4,9 +4,13 @@ import { test } from "node:test";
 import {
   AgentApi,
   AgentApiError,
+  type ApiErrorLayer,
+  type BalanceEntry,
   createGrantCredential,
   DEFAULT_BASE_URL,
+  type ExecutionDetails,
   grantCommitment,
+  type QuoteResponse,
 } from "../src/index.js";
 
 const apiKey = `naa_${"a".repeat(43)}`;
@@ -56,6 +60,26 @@ test("baseUrl is optional and defaults to the hosted API", async () => {
   await api.getTokens();
   assert.equal(DEFAULT_BASE_URL, "https://api.agentsonintents.com");
   assert.equal(urls[0], "https://api.agentsonintents.com/v1/tokens");
+});
+
+test("release reads are public GETs on /v1/releases", async () => {
+  const urls: string[] = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input) => {
+      urls.push(String(input));
+      return Response.json({ releases: [] });
+    },
+  });
+  await api.listReleases();
+  await api.getLatestRelease();
+  await api.getRelease("2026.10.23");
+  assert.deepEqual(urls, [
+    "https://api.test/v1/releases",
+    "https://api.test/v1/releases/latest",
+    "https://api.test/v1/releases/2026.10.23",
+  ]);
 });
 
 test("settlement calls outlive provider budget while quotes and status retain short client deadline", async (t) => {
@@ -151,8 +175,9 @@ test("client exposes JSON:API errors and handles non-JSON upstream failures", as
                   {
                     status: "409",
                     code: "policy_conflict",
+                    layer: "policy",
                     title: "Conflict",
-                    meta: { retryable: false, min_amount: "150000" },
+                    meta: { retryable: false, min_amount: "150000", available_amount: "42" },
                   },
                 ],
                 meta: { request_id: "request-1" },
@@ -167,6 +192,55 @@ test("client exposes JSON:API errors and handles non-JSON upstream failures", as
       assert.equal(error.code, json ? "policy_conflict" : "http_error");
       assert.equal(error.requestId, json ? "request-1" : undefined);
       assert.equal(error.minAmount, json ? "150000" : undefined);
+      assert.equal(error.layer, json ? "policy" : undefined);
+      return true;
+    });
+  }
+});
+
+test("error layer and retryable come from the first error; an absent flag reads false", async () => {
+  const cases = [
+    { code: "spend_budget_exceeded", layer: "budget", meta: undefined, retryable: false },
+    { code: "provider_unavailable", layer: "provider", meta: { retryable: true }, retryable: true },
+    { code: "operation_not_found", layer: "request", meta: { retryable: false }, retryable: false },
+    {
+      code: "insufficient_balance",
+      layer: "balance",
+      meta: { available_amount: "42" },
+      retryable: false,
+    },
+  ] as const;
+  for (const expected of cases) {
+    const api = new AgentApi({
+      baseUrl: "https://api.test",
+      apiKey,
+      fetch: async () =>
+        Response.json(
+          {
+            errors: [
+              {
+                status: "503",
+                code: expected.code,
+                layer: expected.layer,
+                title: "Refused",
+                meta: expected.meta,
+              },
+            ],
+            meta: { request_id: "request-2" },
+          },
+          { status: 503 },
+        ),
+    });
+    await assert.rejects(api.getAgent(agentId), (error: unknown) => {
+      assert.ok(error instanceof AgentApiError);
+      assert.equal(error.code, expected.code);
+      assert.equal(error.layer, expected.layer);
+      assert.equal(error.errors[0]?.layer, expected.layer);
+      assert.equal(error.retryable, expected.retryable);
+      assert.equal(
+        error.availableAmount,
+        expected.code === "insufficient_balance" ? "42" : undefined,
+      );
       return true;
     });
   }
@@ -206,4 +280,37 @@ test("aborted requests forward cancellation and never retry a mutation", async (
     { name: "AbortError" },
   );
   assert.equal(calls, 1);
+});
+
+test("wire types carry error layers, available balances and expected_amount_out", () => {
+  // Compile-time checks: a server rename or removal breaks the build before it reaches a caller.
+  const balance: Pick<BalanceEntry, "balance_raw" | "available_raw" | "available"> = {
+    balance_raw: "10",
+    available_raw: "7",
+    available: null,
+  };
+  const warning: QuoteResponse["warnings"][number]["code"][] = [
+    "policy_action_denied",
+    "policy_destination_denied",
+    "unsupported_token",
+    "invalid_address",
+    "insufficient_balance",
+  ];
+  const details: Pick<ExecutionDetails, "amount_out" | "expected_amount_out"> = {
+    expected_amount_out: "5",
+  };
+  const layers: ApiErrorLayer[] = [
+    "request",
+    "auth",
+    "grant",
+    "policy",
+    "budget",
+    "balance",
+    "provider",
+    "api",
+  ];
+  assert.equal(balance.available_raw, "7");
+  assert.equal(warning.length, 5);
+  assert.equal(details.amount_out, undefined);
+  assert.equal(layers.length, 8);
 });

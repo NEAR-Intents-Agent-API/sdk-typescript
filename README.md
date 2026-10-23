@@ -73,6 +73,7 @@ Check the connection:
 
 ```ts
 const network = await api.getNetwork(); // public: service and provider status
+const release = await api.getLatestRelease(); // public: the announced or active release and what to adapt to
 const me = await api.whoami(); // validates the API key; never returns the key
 const tokens = await api.getTokens(); // public: every asset an agent can use
 ```
@@ -180,11 +181,17 @@ const deposit = await api.deposit(agentId, {
 // Send at least deposit.details.min_amount to deposit.details.deposit_address (with
 // deposit.details.memo if present) before deposit.details.expires_at, then poll
 // getStatus(deposit.correlation_id). Add `amount` (atomic units) for an exact deposit.
-// Without it the address stays open 3 days. A failed or late deposit refunds into the agent's
-// own balance (deposit.details.refund_to). Until something is paid in, getHistory lists the
+// Without it the address stays open 3 days. An unpaid deposit ends FAILED with
+// failure_code "deposit_expired" one day after expires_at; one with a known deposit tx or amount
+// never expires. A failed or late deposit refunds into the agent's own balance
+// (deposit.details.refund_to). Until something is paid in, getHistory lists the
 // address only with { include_unpaid: true }.
 
 const balances = await api.getBalances(agentId);
+// Each entry has balance_raw / balance (what the account holds) and available_raw / available:
+// the balance minus queued or timelocked work that has not been dispatched yet. Show and check
+// `available`; dispatched work is already debited. `available` is null when the exact units are
+// not known; `available_raw` is always the atomic amount.
 ```
 
 Amounts are strings in the token's **atomic units**. Asset ids come from `getTokens()`.
@@ -230,8 +237,22 @@ await assistant.withdraw(agentId, withdrawal);
 ```
 
 If the policy refuses, the call fails with a stable `code` such as `policy_action_denied`,
-`policy_destination_denied`, `spend_budget_exceeded` or `insufficient_balance`; the error says which
-layer refused.
+`policy_destination_denied`, `spend_budget_exceeded` or `insufficient_balance`, and `error.layer`
+says which layer refused: `request`, `auth`, `grant`, `policy`, `budget`, `balance`, `provider` or
+`api`.
+
+Budget and limit refusals (`spend_budget_exceeded`, `spend_price_unavailable`,
+`policy_limit_exceeded`, `policy_action_limit_exceeded`, `policy_usage_unavailable`) are plain
+refusals for a request that runs now: no operation exists, nothing is charged, and there is no
+`FAILED` status to read. Repeating the same key refuses again. Work held by a timelock is judged
+when it dispatches. `insufficient_balance` carries `error.availableAmount`, the available figure
+(see `getBalances`). A dry swap or withdrawal never refuses for these reasons; it warns:
+`quote.warnings[].code` is one of `policy_action_denied`, `policy_destination_denied`,
+`policy_asset_denied`, `policy_schedule_denied`, `spend_price_unavailable`,
+`spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
+`policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
+(with `available_amount`), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
+about the action and the destination instead of refusing.
 
 ## Native accounts
 
@@ -326,7 +347,11 @@ current policy again and ask for a fresh signature. Other owner actions use the 
 | `NEEDS_REVIEW` | Stopped for inspection | Read `details.reason`; never retry. After it is resolved, `getStatus(id, { refresh: true })` |
 
 A failed operation with `details.never_executed` or `details.never_submitted` set to `true` has its
-USD budget charge released once; a new attempt needs a new idempotency key.
+USD and per-asset charges released once; only the provider's own flags count, never a failure
+reason. A new attempt needs a new idempotency key.
+
+`details.amount_out` is present only on `SUCCESS`, or on `REFUNDED` after a partial fill. Before
+that, read `details.expected_amount_out`, the provider's estimate; never treat it as received.
 
 ## Verify an operation
 
@@ -354,7 +379,9 @@ Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshie
 carries an `Idempotency-Key`. Omit it and the SDK generates one and returns it with the result as
 `result.idempotencyKey`. A withdrawal preview (`withdraw` with `dry: true`) carries one too: it
 needs the grant and a key, an identical preview under the same key replays its result for 60
-seconds, and each agent gets 20 previews per rolling 24 hours, failed ones included. A swap quote
+seconds, and each agent gets 20 previews per rolling 24 hours. A refusal the provider states
+before it quotes (such as `route_unavailable` or `unsupported_token`) gives its attempt back;
+outages and uncertain attempts stay counted. A swap quote
 (`swap` with `dry: true`) needs neither. To survive a crash, create and store the key **before**
 sending:
 
@@ -373,7 +400,7 @@ operation. `recover` requires the original key. Quotes, reads and `submitIntent`
 ## Errors
 
 Failures throw `AgentApiError` with `status`, a stable snake_case `code` (branch on it, never on
-`title`), `retryable`, `availableAt`, `minAmount`, `requestId`, the `errors` list and the
+`title`), `layer`, `retryable`, `availableAt`, `minAmount`, `availableAmount`, `requestId`, the `errors` list and the
 transmitted `idempotencyKey`:
 
 ```ts
@@ -396,7 +423,11 @@ before retrying. `retryable` means the identical call under the same `idempotenc
 after `availableAt` or `Retry-After`; server errors (`internal_error`, `database_busy`,
 `transaction_unconfirmed`) are retryable because the call may have taken effect, so repeat them
 under the same key, never a new one. `retryable: false` says only that repeating will not help
-now, never that nothing was sent. Use a new key only after a refusal documented as sending nothing
+now, never that nothing was sent, and an absent flag proves nothing (it reads `false`).
+`route_unavailable` means no route for this pair or amount: repeating the same request will not
+help, so try another amount or pair. `provider_refused` (400, not retryable) is the provider's
+own refusal of the request, in its words in `detail`; nothing was sent, so change the request and
+use a new key. Use a new key only after a refusal documented as sending nothing
 (such as `wallet_busy`, whose key replays the refusal); after a server error, a lost response or
 a recovery code, keep the original key and read the status. A `FAILED` or `REFUNDED` status is not
 proof that nothing was sent (a partial failure is `FAILED`): check its details and balances before
@@ -430,7 +461,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignTransaction`, `nativeSolanaSignMessage`, `nativeSolanaSignTransaction` |
-| Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens` |
+| Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
 | Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 
 `getPartnerQuota()` reports how many agents and API keys you may create and what you have used.

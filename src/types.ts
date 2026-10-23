@@ -17,6 +17,8 @@ type Schemas = components["schemas"];
 // ---- Errors
 export type ErrorDocument = Schemas["ErrorDocument"];
 export type ApiErrorObject = ErrorDocument["errors"][number];
+/** Which layer refused: `request`, `auth`, `grant`, `policy`, `budget`, `balance`, `provider` or `api`. */
+export type ApiErrorLayer = ApiErrorObject["layer"];
 
 // ---- Account and wallet
 export type OwnerWallet = Schemas["OwnerWallet"];
@@ -28,6 +30,8 @@ export type BalanceEntry = BalancesView["balances"][number];
 export type BalanceSource = NonNullable<Query<"getBalances">["source"]>;
 export type TokenView = Success<"getTokens">["data"][number];
 export type NetworkView = Success<"getNetwork">;
+export type ReleaseListView = Success<"listReleases">;
+export type ReleaseView = Success<"getRelease">;
 export type WhoamiView = Success<"whoami">;
 export type PartnerQuotaView = Success<"getPartnerQuota">;
 export type ContainmentView = Success<"getContainment">;

@@ -335,7 +335,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote. The spending rules never refuse a dry swap: each one a live swap would fail (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
+         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote. Neither the account's rules nor the request's own checks refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, `unsupported_token` for an asset `GET /v1/tokens` does not list, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
          */
         post: operations["swap"];
         delete?: never;
@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token`, `Idempotency-Key`, and an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. The spending rules never refuse one: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (schedule, USD budget, per-asset limits, actions per hour, or `policy_usage_unavailable` when unreconciled history keeps the limits from being judged) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours, including failed or uncertain attempts. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. Neither the account's rules nor the request's own checks refuse one: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, `unsupported_token`, `invalid_address` for a recipient that is not a valid address, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours. A refusal the provider states before it quotes (for example `route_unavailable` or `unsupported_token`) gives its attempt back; outages and uncertain attempts stay counted. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -393,7 +393,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Move a public balance to the confidential shard */
+        /**
+         * Move a public balance to the confidential shard
+         * @description The confidential balance, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         */
         post: operations["shield"];
         delete?: never;
         options?: never;
@@ -410,7 +413,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Move a confidential balance back to public */
+        /**
+         * Move a confidential balance back to public
+         * @description The confidential balance, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         */
         post: operations["unshield"];
         delete?: never;
         options?: never;
@@ -647,9 +653,66 @@ export interface paths {
         };
         /**
          * Get the network, supported owner types and live dependency status
-         * @description `status` reports 1Click, custody (OutLayer) and NEAR health from background probes, refreshed about once a minute. It is advisory: no request is refused because of it. Read it before acting, or after `quote_unavailable` / `provider_unavailable`, to tell a provider outage from a problem with the request.
+         * @description `status` reports 1Click, custody (OutLayer) and NEAR health from background probes, refreshed about once a minute. It is advisory: no request is refused because of it. Read it before acting, or after `provider_unavailable`, to tell a provider outage from a problem with the request.
          */
         get: operations["getNetwork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List this deployment's releases, newest first
+         * @description Newest `announced_at` first: `announced` releases not yet running, the `active` one the attested CVM runs, then `retired` and `withdrawn` ones. A release is announced at least `notice_hours` before it may run, so read `changes`, `breaking_changes` and `action_required` and adapt before `effective_at`. A `security` release may run earlier only with `expedite`, a note its security quorum signed. The feed describes; the chain decides: a release counts once the Base app contract has allowed its `compose_hash` for `notice_hours`, or the quorum signed its expedite, which the release verifier checks without trusting this feed. Public.
+         */
+        get: operations["listReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/releases/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the most recently announced release that was not withdrawn
+         * @description The first entry of `GET /v1/releases` that is not `withdrawn`: an `announced` release while one waits, otherwise the `active` one. Public.
+         */
+        get: operations["getLatestRelease"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/releases/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one release by its version */
+        get: operations["getRelease"];
         put?: never;
         post?: never;
         delete?: never;
@@ -700,6 +763,8 @@ export interface components {
             errors: {
                 status: string;
                 code: string;
+                /** @enum {string} */
+                layer: "request" | "auth" | "grant" | "policy" | "budget" | "balance" | "provider" | "api";
                 title: string;
                 detail?: string;
                 source?: {
@@ -710,6 +775,7 @@ export interface components {
                     /** Format: date-time */
                     available_at?: string;
                     min_amount?: string;
+                    available_amount?: string;
                 };
             }[];
             meta: {
@@ -1412,6 +1478,7 @@ export interface components {
             tx_hash?: string | null;
             destination_tx_hash?: string | null;
             amount_out?: string | null;
+            expected_amount_out?: string;
             deposit_address?: string | null;
             memo?: string | null;
             min_amount?: string | null;
@@ -2445,6 +2512,8 @@ export interface operations {
                             price_expires_at: string | null;
                             balance_raw: string;
                             balance: string | null;
+                            available_raw: string;
+                            available: string | null;
                         }[];
                     };
                 };
@@ -3541,10 +3610,11 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
+                            available_amount?: string;
                         }[];
                     };
                 };
@@ -3677,10 +3747,11 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
+                            available_amount?: string;
                         }[];
                     };
                 };
@@ -5356,6 +5427,358 @@ export interface operations {
                                 checked_at: string | null;
                             }[];
                         };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    listReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        releases: {
+                            version: string;
+                            /** @enum {string} */
+                            status: "announced" | "active" | "retired" | "withdrawn";
+                            /** @enum {string} */
+                            type: "standard" | "security";
+                            /** Format: date-time */
+                            announced_at: string;
+                            /** Format: date-time */
+                            effective_at: string;
+                            notice_hours: number;
+                            changes: string[];
+                            breaking_changes: boolean;
+                            action_required: boolean;
+                            compose_hash: string;
+                            manifest_digest: string;
+                            revision: string;
+                            images: {
+                                server: string;
+                                backup: string;
+                                attestation: string;
+                                edge: string;
+                            };
+                            expedite: string | null;
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    getLatestRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        version: string;
+                        /** @enum {string} */
+                        status: "announced" | "active" | "retired" | "withdrawn";
+                        /** @enum {string} */
+                        type: "standard" | "security";
+                        /** Format: date-time */
+                        announced_at: string;
+                        /** Format: date-time */
+                        effective_at: string;
+                        notice_hours: number;
+                        changes: string[];
+                        breaking_changes: boolean;
+                        action_required: boolean;
+                        compose_hash: string;
+                        manifest_digest: string;
+                        revision: string;
+                        images: {
+                            server: string;
+                            backup: string;
+                            attestation: string;
+                            edge: string;
+                        };
+                        expedite: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    getRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        version: string;
+                        /** @enum {string} */
+                        status: "announced" | "active" | "retired" | "withdrawn";
+                        /** @enum {string} */
+                        type: "standard" | "security";
+                        /** Format: date-time */
+                        announced_at: string;
+                        /** Format: date-time */
+                        effective_at: string;
+                        notice_hours: number;
+                        changes: string[];
+                        breaking_changes: boolean;
+                        action_required: boolean;
+                        compose_hash: string;
+                        manifest_digest: string;
+                        revision: string;
+                        images: {
+                            server: string;
+                            backup: string;
+                            attestation: string;
+                            edge: string;
+                        };
+                        expedite: string | null;
                     };
                 };
             };

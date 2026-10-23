@@ -31,6 +31,8 @@ import type {
   PolicyView,
   QuoteResponse,
   RecoverRequest,
+  ReleaseListView,
+  ReleaseView,
   ScheduledPage,
   Signature,
   SignRequest,
@@ -612,6 +614,20 @@ export class AgentApi {
 
   getNetwork(options: RequestOptions = {}): Promise<NetworkView> {
     return this.call(endpoints.getNetwork, options);
+  }
+
+  /** This deployment's releases, newest first: announced, active, retired and withdrawn. Public. */
+  listReleases(options: RequestOptions = {}): Promise<ReleaseListView> {
+    return this.call(endpoints.listReleases, options);
+  }
+
+  /** The most recently announced release that was not withdrawn. Public. */
+  getLatestRelease(options: RequestOptions = {}): Promise<ReleaseView> {
+    return this.call(endpoints.getLatestRelease, options);
+  }
+
+  getRelease(version: string, options: RequestOptions = {}): Promise<ReleaseView> {
+    return this.call(endpoints.getRelease, { params: { version }, ...options });
   }
 
   whoami(options: RequestOptions = {}): Promise<WhoamiView> {

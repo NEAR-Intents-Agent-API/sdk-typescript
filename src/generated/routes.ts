@@ -47,6 +47,9 @@ export const endpoints = {
   nativeSolanaSignTransaction: { operationId: "nativeSolanaSignTransaction", method: "post", path: "/v1/agents/{agent_id}/native/solana/sign-transaction", grant: true },
   getTokens: { operationId: "getTokens", method: "get", path: "/v1/tokens" },
   getNetwork: { operationId: "getNetwork", method: "get", path: "/v1/network" },
+  listReleases: { operationId: "listReleases", method: "get", path: "/v1/releases" },
+  getLatestRelease: { operationId: "getLatestRelease", method: "get", path: "/v1/releases/latest" },
+  getRelease: { operationId: "getRelease", method: "get", path: "/v1/releases/{version}" },
   whoami: { operationId: "whoami", method: "get", path: "/v1/whoami" },
   getPartnerQuota: { operationId: "getPartnerQuota", method: "get", path: "/v1/quotas" },
 } as const satisfies Record<string, EndpointDefinition>;
