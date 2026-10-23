@@ -3604,6 +3604,7 @@ export interface operations {
                             amount_usd: string | null;
                             budget: components["schemas"]["BudgetView"];
                         };
+                        owner_approval: boolean;
                         fee: {
                             amount_usd: string;
                             percent: string;
@@ -3741,6 +3742,7 @@ export interface operations {
                             amount_usd: string | null;
                             budget: components["schemas"]["BudgetView"];
                         };
+                        owner_approval: boolean;
                         fee: {
                             amount_usd: string;
                             percent: string;

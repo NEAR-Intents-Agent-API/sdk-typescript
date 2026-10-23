@@ -252,7 +252,8 @@ when it dispatches. `insufficient_balance` carries `error.availableAmount`, the 
 `spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
 `policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
 (with `available_amount`), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
-about the action and the destination instead of refusing.
+about the action and the destination instead of refusing. `quote.owner_approval` is true when
+the live request would wait in `PENDING_APPROVAL` for the owner.
 
 ## Native accounts
 
