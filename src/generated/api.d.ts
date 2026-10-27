@@ -335,7 +335,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote. Neither the account's rules nor the request's own checks refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, `unsupported_token` for an asset `GET /v1/tokens` does not list, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
+         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
          */
         post: operations["swap"];
         delete?: never;
@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview. Neither the account's rules nor the request's own checks refuse one: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, `unsupported_token`, `invalid_address` for a recipient that is not a valid address, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours. A refusal the provider states before it quotes (for example `route_unavailable` or `unsupported_token`) gives its attempt back; outages and uncertain attempts stay counted. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is, consuming no preview attempt. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours. A preview the provider refuses (for example `route_unavailable`), an outage and an uncertain attempt stay counted; only an answer the provider gives before running anything (its rate limiter's 429, `wallet_busy`, `provider_limit_reached`) gives its attempt back. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -1550,19 +1550,19 @@ export interface components {
         BudgetView: {
             daily: {
                 limit_usd: string | null;
-                spent_usd: string;
+                spent_usd: string | null;
                 remaining_usd: string | null;
                 resets_at: string | null;
             };
             weekly: {
                 limit_usd: string | null;
-                spent_usd: string;
+                spent_usd: string | null;
                 remaining_usd: string | null;
                 resets_at: string | null;
             };
             monthly: {
                 limit_usd: string | null;
-                spent_usd: string;
+                spent_usd: string | null;
                 remaining_usd: string | null;
                 resets_at: string | null;
             };

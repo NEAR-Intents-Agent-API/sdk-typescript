@@ -15,7 +15,12 @@ export async function readResponseJson(
     if (response.ok) throw error;
   }
   if (!response.ok)
-    throw new AgentApiError(response.status, json as ErrorDocument | undefined, idempotencyKey);
+    throw new AgentApiError(
+      response.status,
+      json as ErrorDocument | undefined,
+      idempotencyKey,
+      response.headers.get("retry-after"),
+    );
   return json;
 }
 

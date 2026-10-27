@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.2
+
+- `AgentApiError.retryAfterSeconds`: the response's `Retry-After` header in whole seconds
+  (delay-seconds or an HTTP date), when it sent one. It is the API's own wait for a throttle or
+  outage whose end `availableAt` cannot name.
+- Regenerated API types: `BudgetView` `spent_usd` is `string | null`. An uncapped window has no
+  period and counts nothing, so `limit_usd`, `spent_usd`, `remaining_usd` and `resets_at` are all
+  null.
+- Regenerated descriptions: a withdrawal preview's `fee` on chain `near` falls back to `amount`
+  minus `quote.amount_out` when the provider states no estimate in the withdrawn asset. A dry swap
+  or withdrawal for an unlisted asset (`unsupported_token`) or an invalid recipient
+  (`invalid_address`) is refused before any provider call and uses no preview attempt. Only an
+  answer the provider gives before running anything (its rate limiter's 429, `wallet_busy`,
+  `provider_limit_reached`) gives a preview attempt back; a provider refusal such as
+  `route_unavailable`, an outage or an uncertain attempt stays counted.
+
 ## 0.7.1
 
 - Regenerated API types: a dry swap or withdrawal (`QuoteResponse`) carries `owner_approval`,

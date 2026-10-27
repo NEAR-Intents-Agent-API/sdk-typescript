@@ -46,6 +46,8 @@ export class AgentApiResponseTooLargeError extends Error {
  * failures return one per field).
  * `retryable` means the identical request under the same Idempotency-Key can succeed after
  * `availableAt` or Retry-After, including a server error whose request may have taken effect.
+ * `retryAfterSeconds` is the response's Retry-After header in whole seconds, when it sent one: the
+ * API's own wait for a throttle or outage whose end it cannot name in `availableAt`.
  * An absent flag proves nothing (it reads `false`), and `false` says only that repeating will not
  * help now, never that nothing was sent: a new key is safe only after a refusal documented as
  * sending nothing. A FAILED or REFUNDED status is not that proof. `minAmount`, on
@@ -61,13 +63,19 @@ export class AgentApiError extends Error {
   readonly detail: string | undefined;
   readonly retryable: boolean;
   readonly availableAt: string | undefined;
+  readonly retryAfterSeconds: number | undefined;
   readonly minAmount: string | undefined;
   readonly availableAmount: string | undefined;
   readonly requestId: string | undefined;
   readonly errors: ApiErrorObject[];
   readonly idempotencyKey: string | undefined;
 
-  constructor(status: number, document: ErrorDocument | undefined, idempotencyKey?: string) {
+  constructor(
+    status: number,
+    document: ErrorDocument | undefined,
+    idempotencyKey?: string,
+    retryAfter?: string | null,
+  ) {
     const first = document?.errors?.[0];
     super(first?.detail ?? first?.title ?? `HTTP ${status}`);
     this.name = "AgentApiError";
@@ -78,10 +86,20 @@ export class AgentApiError extends Error {
     this.detail = first?.detail;
     this.retryable = first?.meta?.retryable ?? false;
     this.availableAt = first?.meta?.available_at;
+    this.retryAfterSeconds = retryAfterSeconds(retryAfter);
     this.minAmount = first?.meta?.min_amount;
     this.availableAmount = first?.meta?.available_amount;
     this.requestId = document?.meta?.request_id;
     this.errors = document?.errors ?? [];
     this.idempotencyKey = idempotencyKey;
   }
+}
+
+/** A Retry-After header (delay-seconds or an HTTP date) as whole seconds from now. */
+function retryAfterSeconds(header: string | null | undefined): number | undefined {
+  const value = header?.trim();
+  if (!value) return undefined;
+  if (/^\d+$/.test(value)) return Number(value);
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }

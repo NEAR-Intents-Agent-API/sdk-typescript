@@ -401,7 +401,7 @@ operation. `recover` requires the original key. Quotes, reads and `submitIntent`
 ## Errors
 
 Failures throw `AgentApiError` with `status`, a stable snake_case `code` (branch on it, never on
-`title`), `layer`, `retryable`, `availableAt`, `minAmount`, `availableAmount`, `requestId`, the `errors` list and the
+`title`), `layer`, `retryable`, `availableAt`, `retryAfterSeconds`, `minAmount`, `availableAmount`, `requestId`, the `errors` list and the
 transmitted `idempotencyKey`:
 
 ```ts
@@ -421,7 +421,7 @@ Transport, timeout, cancellation and parsing failures throw `AgentApiRequestErro
 over the size budget throws `AgentApiResponseTooLargeError`. Both keep the original `idempotencyKey`
 (and `cause`); a failed write may still have reached the API, so reconcile the original operation
 before retrying. `retryable` means the identical call under the same `idempotencyKey` can succeed
-after `availableAt` or `Retry-After`; server errors (`internal_error`, `database_busy`,
+after `availableAt` or `retryAfterSeconds` (the response's `Retry-After` header); server errors (`internal_error`, `database_busy`,
 `transaction_unconfirmed`) are retryable because the call may have taken effect, so repeat them
 under the same key, never a new one. `retryable: false` says only that repeating will not help
 now, never that nothing was sent, and an absent flag proves nothing (it reads `false`).
