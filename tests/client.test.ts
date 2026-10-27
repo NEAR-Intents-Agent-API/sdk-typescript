@@ -246,6 +246,47 @@ test("error layer and retryable come from the first error; an absent flag reads 
   }
 });
 
+test("Retry-After reaches the error in seconds, from delay-seconds or an HTTP date", async () => {
+  const inFive = new Date(Date.now() + 5_000).toUTCString();
+  for (const [header, seconds] of [
+    ["1", 1],
+    [" 30 ", 30],
+    [inFive, 5],
+    ["Thu, 01 Jan 1970 00:00:00 GMT", 0],
+    ["soon", undefined],
+    [null, undefined],
+  ] as const) {
+    const api = new AgentApi({
+      baseUrl: "https://api.test",
+      apiKey,
+      fetch: async () =>
+        Response.json(
+          {
+            errors: [
+              {
+                status: "429",
+                code: "rate_limited",
+                layer: "api",
+                title: "Rate limited",
+                meta: { retryable: true },
+              },
+            ],
+          },
+          { status: 429, headers: header === null ? {} : { "retry-after": header } },
+        ),
+    });
+    await assert.rejects(api.getAgent(agentId), (error: unknown) => {
+      assert.ok(error instanceof AgentApiError);
+      assert.equal(error.retryable, true);
+      // An HTTP date rounds up to the next whole second, so allow the clock one second.
+      if (header === inFive)
+        assert.ok(error.retryAfterSeconds === 5 || error.retryAfterSeconds === 4);
+      else assert.equal(error.retryAfterSeconds, seconds, String(header));
+      return true;
+    });
+  }
+});
+
 test("client refuses credential-bearing or insecure origins before fetch", () => {
   for (const baseUrl of [
     "http://api.test",
