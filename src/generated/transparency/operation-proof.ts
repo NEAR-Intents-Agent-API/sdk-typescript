@@ -3,15 +3,21 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { type AuditFields, auditLeaf, decodeAuditOpening } from "./audit.js";
 import { birthReportData, signingAddress } from "./binding.js";
-import type { Checkpoint } from "./checkpoint.js";
+import { type Checkpoint, verifyCheckpointContinuation } from "./checkpoint.js";
+import { parseHash, parseUint64 } from "./framing.js";
 import { COSIGNATURE_V1, ED25519, NoteError, type NoteVerifier, parseVerifierKey } from "./note.js";
-import { verifyTlogProof } from "./tlog-proof.js";
+import { verifySignedCheckpoint, verifyTlogProof } from "./tlog-proof.js";
 
 /** The `getOperationProof` response, as the API serves it. */
 export type OperationProofDocument = {
   readonly agent_id: string;
   readonly correlation_id: string;
   readonly origin: string;
+  readonly checkpoint: string | null;
+  readonly consistency: {
+    readonly from_size: string;
+    readonly hashes: readonly string[];
+  } | null;
   readonly notary: {
     readonly log_key: string;
     readonly notary_key: string;
@@ -45,6 +51,8 @@ export type ProvenEvent = {
 };
 
 export type VerifiedOperation = {
+  /** Persist only after verifying this boot's attestation against the expected deployment. */
+  readonly checkpoint: Checkpoint;
   /** Hex `report_data` that a genuine TDX quote from the notary's birth must carry. */
   readonly birthReportData: string | null;
   readonly proven: readonly ProvenEvent[];
@@ -58,20 +66,55 @@ export type VerifiedOperation = {
  * describes this operation's event of this agent. The caller pins `origin`, checks that
  * `agent_id` and `correlation_id` are the ones it asked for, and must still check
  * `birthReportData` against the notary's TDX quote, which is what ties the keys to attested code.
+ * `trusted` must come from independently retained state or a trusted witness, never this response.
  */
 export function verifyOperationProof(
   document: OperationProofDocument,
   origin: string,
+  trusted: Checkpoint,
 ): VerifiedOperation {
   if (document.origin !== origin)
     throw new NoteError(`proof is for log ${document.origin}, not ${origin}`);
   const keys = document.notary && notaryVerifiers(document.notary, origin);
+  if (!keys || !document.checkpoint) throw new NoteError("proof has no signed checkpoint");
+  const { checkpoint } = verifySignedCheckpoint(utf8ToBytes(document.checkpoint), {
+    origin,
+    log: keys.log,
+    cosigners: [keys.cosigner],
+  });
+  verifyContinuation(document, checkpoint, trusted);
   const counts = { pending: 0, unlogged: 0 };
   const proven: ProvenEvent[] = [];
   for (const event of document.events)
-    if (event.status === "PROVEN") proven.push(provenEvent(event, document, origin, keys));
-    else counts[unproven(event)] += 1;
-  return { birthReportData: keys?.birthReportData ?? null, proven, ...counts };
+    if (event.status === "PROVEN") {
+      const verified = provenEvent(event, document, origin, keys);
+      if (
+        verified.checkpoint.size !== checkpoint.size ||
+        bytesToHex(verified.checkpoint.root) !== bytesToHex(checkpoint.root)
+      )
+        throw new NoteError("event proof uses a different checkpoint");
+      proven.push(verified);
+    } else counts[unproven(event)] += 1;
+  return { checkpoint, birthReportData: keys.birthReportData, proven, ...counts };
+}
+
+function verifyContinuation(
+  document: OperationProofDocument,
+  current: Checkpoint,
+  trusted: Checkpoint,
+) {
+  if (!trusted || trusted.origin !== document.origin)
+    throw new NoteError("a trusted checkpoint for this origin is required");
+  const consistency = document.consistency;
+  if (consistency && parseUint64(consistency.from_size, "consistency size") !== trusted.size)
+    throw new NoteError("consistency proof does not start at the trusted checkpoint");
+  const hashes = consistency?.hashes ?? [];
+  if (hashes.length > 64) throw new NoteError("consistency proof is too long");
+  verifyCheckpointContinuation(
+    trusted,
+    current,
+    hashes.map((hash) => parseHash(hash, "consistency hash")),
+  );
 }
 
 function notaryVerifiers(

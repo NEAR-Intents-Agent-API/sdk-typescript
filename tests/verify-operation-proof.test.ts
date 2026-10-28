@@ -7,6 +7,7 @@ import { base58 } from "@scure/base";
 import { auditLeaf, encodeAuditOpening } from "../src/generated/transparency/audit.js";
 import { birthReportData, signingAddress } from "../src/generated/transparency/binding.js";
 import { formatCheckpoint } from "../src/generated/transparency/checkpoint.js";
+import { signWitnessMessage } from "../src/generated/transparency/checkpoint-witness.js";
 import {
   COSIGNATURE_V1,
   cosignatureSigner,
@@ -18,9 +19,12 @@ import {
 import { formatTlogProof } from "../src/generated/transparency/tlog-proof.js";
 import {
   AgentApi,
+  type Checkpoint,
+  fetchWitnessCheckpoint,
   NoteError,
   type OperationProofDocument,
   ProofError,
+  parseCheckpoint,
   verifyOperationProof,
 } from "../src/index.js";
 
@@ -64,6 +68,8 @@ function proofDocument(): OperationProofDocument {
     agent_id: agentId,
     correlation_id: correlationId,
     origin,
+    checkpoint: new TextDecoder().decode(note),
+    consistency: null,
     notary: {
       log_key: verifierKey(origin, ED25519, logPublic),
       notary_key: verifierKey(notaryName, COSIGNATURE_V1, notaryPublic),
@@ -83,9 +89,16 @@ function proofDocument(): OperationProofDocument {
   };
 }
 
+/** The head a witness would report for this log: the signed checkpoint's body. */
+function witnessed(document: OperationProofDocument): Checkpoint {
+  const note = document.checkpoint ?? "";
+  return parseCheckpoint(note.slice(0, note.indexOf("\n\n") + 1));
+}
+
 test("a proof the log and notary signed verifies offline and opens to its event", () => {
   const document = proofDocument();
-  const verified = verifyOperationProof(document, origin);
+  const verified = verifyOperationProof(document, origin, witnessed(document));
+  assert.equal(verified.checkpoint.size, 1n);
   assert.equal(verified.birthReportData, document.notary?.birth.report_data);
   assert.equal(verified.proven.length, 1);
   assert.deepEqual(verified.proven[0]?.fields, {
@@ -131,9 +144,52 @@ test("forged logs, events, openings and notary keys the birth does not bind are 
     [{ ...document, notary: { ...notary, signing_address: "0".repeat(128) } }, NoteError],
   ];
   assert.notEqual(swapped, proven.proof);
+  const trusted = witnessed(document);
   for (const [forged, refusal] of forgeries)
-    assert.throws(() => verifyOperationProof(forged, forged.origin), refusal);
-  assert.throws(() => verifyOperationProof(document, "api.other.example/log"), NoteError);
+    assert.throws(() => verifyOperationProof(forged, forged.origin, trusted), refusal);
+  assert.throws(() => verifyOperationProof(document, "api.other.example/log", trusted), NoteError);
+});
+
+test("a log the trusted head does not lead to is refused: a fork, a rollback, another log", () => {
+  const document = proofDocument();
+  const trusted = witnessed(document);
+  const forked = { ...trusted, root: new Uint8Array(32) };
+  const ahead = { ...trusted, size: trusted.size + 1n };
+  const foreign = { ...trusted, origin: "api.other.example/log" };
+  assert.throws(() => verifyOperationProof(document, origin, forked), ProofError);
+  assert.throws(() => verifyOperationProof(document, origin, ahead), ProofError);
+  assert.throws(() => verifyOperationProof(document, origin, foreign), NoteError);
+});
+
+test("a head the pinned witness signs for a fresh nonce is the trusted checkpoint", async (t) => {
+  const document = proofDocument();
+  const witnessSecret = ed25519.utils.randomSecretKey();
+  const witnessKey = bytesToHex(ed25519.getPublicKey(witnessSecret));
+  let previous: unknown;
+  let replay = false;
+  t.mock.method(globalThis, "fetch", (url: URL) => {
+    const envelope = signWitnessMessage(
+      { nonce: url.searchParams.get("nonce"), checkpoint: formatCheckpoint(witnessed(document)) },
+      witnessSecret,
+      "response",
+    );
+    const reply = Response.json(replay ? previous : envelope);
+    previous = envelope;
+    return Promise.resolve(reply);
+  });
+  const trusted = await fetchWitnessCheckpoint("https://api.example.com", origin, witnessKey);
+  assert.equal(verifyOperationProof(document, origin, trusted).proven.length, 1);
+  replay = true;
+  await assert.rejects(
+    fetchWitnessCheckpoint("https://api.example.com", origin, witnessKey),
+    NoteError,
+  );
+  const stranger = bytesToHex(ed25519.getPublicKey(ed25519.utils.randomSecretKey()));
+  replay = false;
+  await assert.rejects(
+    fetchWitnessCheckpoint("https://api.example.com", origin, stranger),
+    NoteError,
+  );
 });
 
 test("a getOperationProof response verifies without reshaping", async () => {
@@ -144,5 +200,5 @@ test("a getOperationProof response verifies without reshaping", async () => {
     fetch: async () => Response.json(document),
   });
   const response = await api.getOperationProof(agentId, correlationId);
-  assert.equal(verifyOperationProof(response, origin).proven.length, 1);
+  assert.equal(verifyOperationProof(response, origin, witnessed(document)).proven.length, 1);
 });

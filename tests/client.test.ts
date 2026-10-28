@@ -157,9 +157,12 @@ test("an operation proof is read from the agent's operation with the API key alo
   const { token } = createGrantCredential();
   await api.forGrant(token).getOperationProof(agentId, "op_a/b");
   assert.equal(calls[0]?.url.pathname, `/v1/agents/${agentId}/operations/op_a%2Fb/proof`);
+  assert.equal(calls[0]?.url.searchParams.has("from_size"), false);
   assert.equal(calls[0]?.headers.get("x-api-key"), apiKey);
   assert.equal(calls[0]?.headers.get("x-grant-token"), null);
   assert.equal(calls[0]?.headers.get("idempotency-key"), null);
+  await api.getOperationProof(agentId, "op_1", { from_size: "42" });
+  assert.equal(calls[1]?.url.searchParams.get("from_size"), "42");
 });
 
 test("client exposes JSON:API errors and handles non-JSON upstream failures", async () => {

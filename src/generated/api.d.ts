@@ -673,7 +673,7 @@ export interface paths {
         };
         /**
          * List this deployment's releases, newest first
-         * @description Newest `announced_at` first: `announced` releases not yet running, the `active` one the attested CVM runs, then `retired` and `withdrawn` ones. A release is announced at least `notice_hours` before it may run, so read `changes`, `breaking_changes` and `action_required` and adapt before `effective_at`. A `security` release may run earlier only with `expedite`, a note its security quorum signed. The feed describes; the chain decides: a release counts once the Base app contract has allowed its `compose_hash` for `notice_hours`, or the quorum signed its expedite, which the release verifier checks without trusting this feed. Public.
+         * @description Newest `announced_at` first: `announced` releases not yet running, the `active` one the attested CVM runs, then `retired` and `withdrawn` ones. A release is announced at least `notice_hours` before it may run, so read `changes`, `breaking_changes` and `action_required` and adapt before `effective_at`. A `security` release may run earlier only with `expedite`, a note its security quorum signed. The feed describes; the chain decides: a release counts once the app contract on Ethereum has allowed its `compose_hash` for `notice_hours`, or the quorum signed its expedite, which the release verifier checks without trusting this feed. Public.
          */
         get: operations["listReleases"];
         put?: never;
@@ -3611,7 +3611,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
@@ -3749,7 +3749,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;

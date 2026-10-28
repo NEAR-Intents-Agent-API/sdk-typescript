@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0
+
+- Breaking: `verifyOperationProof(proof, origin, trusted)` requires a checkpoint you already
+  trust and refuses a log that forks or rolls back from it. Get one with the new
+  `fetchWitnessCheckpoint(apiUrl, origin, witnessKey)`, which checks the witness's signature on a
+  fresh head, or keep one with `formatCheckpoint` and `parseCheckpoint`.
+- Breaking: `getOperationProof(agentId, correlationId, query, options)` takes `{ from_size }`, the
+  trusted checkpoint's size, so the proof carries the consistency path from it.
+- New error code `policy_transaction_limit_exceeded` (403, layer `policy`, not retryable): an
+  amount above the policy's `limits.per_transaction`, refused before anything is recorded. A quote
+  reports it as a warning.
+- The Intel Trust Authority token verifier is generated but not exported yet.
+
 ## 0.7.2
 
 - `AgentApiError.retryAfterSeconds`: the response's `Retry-After` header in whole seconds

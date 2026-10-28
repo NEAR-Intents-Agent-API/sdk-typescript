@@ -246,15 +246,18 @@ export class AgentApi {
   /**
    * Every audit event of one execution, each with a `c2sp.org/tlog-proof@v1` against the latest
    * notary-signed checkpoint of the API's transparency log. An event that checkpoint does not yet
-   * cover reads `PENDING`.
+   * cover reads `PENDING`. `from_size` is the size of the checkpoint you trust: the proof then
+   * carries the consistency path from it.
    */
   getOperationProof(
     agentId: string,
     correlationId: string,
+    query: { from_size?: string } = {},
     options: RequestOptions = {},
   ): Promise<OperationProof> {
     return this.call(endpoints.getOperationProof, {
       params: { agent_id: agentId, correlation_id: correlationId },
+      query,
       ...options,
     });
   }

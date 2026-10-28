@@ -242,14 +242,16 @@ says which layer refused: `request`, `auth`, `grant`, `policy`, `budget`, `balan
 `api`.
 
 Budget and limit refusals (`spend_budget_exceeded`, `spend_price_unavailable`,
-`policy_limit_exceeded`, `policy_action_limit_exceeded`, `policy_usage_unavailable`) are plain
+`policy_transaction_limit_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
+`policy_usage_unavailable`) are plain
 refusals for a request that runs now: no operation exists, nothing is charged, and there is no
 `FAILED` status to read. Repeating the same key refuses again. Work held by a timelock is judged
 when it dispatches. `insufficient_balance` carries `error.availableAmount`, the available figure
 (see `getBalances`). A dry swap or withdrawal never refuses for these reasons; it warns:
 `quote.warnings[].code` is one of `policy_action_denied`, `policy_destination_denied`,
-`policy_asset_denied`, `policy_schedule_denied`, `spend_price_unavailable`,
-`spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
+`policy_asset_denied`, `policy_transaction_limit_exceeded`, `policy_schedule_denied`,
+`spend_price_unavailable`, `spend_budget_exceeded`, `policy_limit_exceeded`,
+`policy_action_limit_exceeded`,
 `policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
 (with `available_amount`), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
 about the action and the destination instead of refusing. `quote.owner_approval` is true when
@@ -357,14 +359,27 @@ that, read `details.expected_amount_out`, the provider's estimate; never treat i
 ## Verify an operation
 
 `getOperationProof` returns an execution's audit trail with a transparency-log proof per event.
-`verifyOperationProof` checks it offline, without trusting the API: each `PROVEN` event's opening
-hashes to a leaf the checkpoint includes, the checkpoint carries the log's and the notary's
-signatures, and the opening describes that event. Pin the log origin yourself.
+`verifyOperationProof` checks it offline, without trusting the API: the checkpoint carries the
+log's and the notary's signatures and extends a checkpoint you already trust, each `PROVEN`
+event's opening hashes to a leaf that checkpoint includes, and the opening describes that event.
+Pin the log origin and the witness's public key yourself; never take the key from a response.
 
 ```ts
-const proof = await api.getOperationProof(agentId, correlationId);
-const verified = verifyOperationProof(proof, "api.agentsonintents.com/log");
+import { fetchWitnessCheckpoint, verifyOperationProof } from "@near-intents-agent-api/sdk";
+
+const origin = "api.agentsonintents.com/log";
+const trusted = await fetchWitnessCheckpoint("https://api.agentsonintents.com", origin, witnessKey);
+const proof = await api.getOperationProof(agentId, correlationId, {
+  from_size: trusted.size.toString(),
+});
+const verified = verifyOperationProof(proof, origin, trusted);
 ```
+
+`witnessKey` is the witness's hex public key, which the operator publishes apart from the API.
+`fetchWitnessCheckpoint` sends a fresh nonce to `/tee/witness` and checks the witness's signature
+on the head it reports. A checkpoint you verified earlier also works as `trusted`; keep it with
+`formatCheckpoint` and read it back with `parseCheckpoint`. A log that forks or rolls back from
+the trusted checkpoint throws, and so does a proof without one.
 
 `verified.proven` lists each event's leaf index, audited fields, checkpoint and `evidence`: the
 result it recorded, with its settlement transaction hashes, checked against the opening's
@@ -463,7 +478,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignTransaction`, `nativeSolanaSignMessage`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `parseCheckpoint`, `formatCheckpoint` |
 
 `getPartnerQuota()` reports how many agents and API keys you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,
