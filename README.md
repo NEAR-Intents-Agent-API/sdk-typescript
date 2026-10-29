@@ -380,9 +380,8 @@ Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshie
 carries an `Idempotency-Key`. Omit it and the SDK generates one and returns it with the result as
 `result.idempotencyKey`. A withdrawal preview (`withdraw` with `dry: true`) carries one too: it
 needs the grant and a key, an identical preview under the same key replays its result for 60
-seconds, and each agent gets 20 previews per rolling 24 hours. A refusal the provider states
-before it quotes (such as `route_unavailable` or `unsupported_token`) gives its attempt back;
-outages and uncertain attempts stay counted. A swap quote
+seconds. The API sets no preview cap: each preview counts toward the wallet's 100 custody
+operations per rolling 24 hours at the provider. A swap quote
 (`swap` with `dry: true`) needs neither. To survive a crash, create and store the key **before**
 sending:
 
