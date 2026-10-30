@@ -355,7 +355,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is, consuming no preview attempt. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; null for a bridged route, whose `quote.amount_out` is in a destination asset the preview does not name) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. At most 20 provider preview attempts are admitted per agent per rolling 24 hours. A preview the provider refuses (for example `route_unavailable`), an outage and an uncertain attempt stay counted; only an answer the provider gives before running anything (its rate limiter's 429, `wallet_busy`, `provider_limit_reached`) gives its attempt back. NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
+         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -495,7 +495,7 @@ export interface paths {
         put?: never;
         /**
          * Send native NEAR from the agent's NEAR account
-         * @description Needs `native.near.transfer`. Sends from the agent's NEAR account (`wallet.near_account_id`), outside NEAR Intents. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. OutLayer still applies the policy's `assets` (wNEAR covers native NEAR), `limits` and `max_actions_per_hour`. A retry with the same `Idempotency-Key` returns the same request and never sends twice.
+         * @description Needs `native.near.transfer`. Sends from the agent's NEAR account (`wallet.near_account_id`), outside NEAR Intents. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. OutLayer still applies the policy's `assets` (wNEAR covers native NEAR), `limits` and `max_actions_per_hour`. A retry with the same `Idempotency-Key` returns the same request and never sends twice.
          */
         post: operations["nativeNearTransfer"];
         delete?: never;
@@ -515,7 +515,7 @@ export interface paths {
         put?: never;
         /**
          * Call a NEAR contract from the agent's NEAR account
-         * @description Needs `receiver_id` listed in `native.near.call`. The NEAR Intents contracts are never callable (`native_contract_forbidden`). Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Listing a token contract lets the agent send that token anywhere from its NEAR account. A retry with the same `Idempotency-Key` returns the same request and never calls twice.
+         * @description Needs `receiver_id` listed in `native.near.call`. The NEAR Intents contracts are never callable (`native_contract_forbidden`). Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. A call that attaches no deposit sends no NEAR. Listing a token contract lets the agent send that token anywhere from its NEAR account. A retry with the same `Idempotency-Key` returns the same request and never calls twice.
          */
         post: operations["nativeNearCall"];
         delete?: never;
@@ -673,7 +673,7 @@ export interface paths {
         };
         /**
          * List this deployment's releases, newest first
-         * @description Newest `announced_at` first: `announced` releases not yet running, the `active` one the attested CVM runs, then `retired` and `withdrawn` ones. A release is announced at least `notice_hours` before it may run, so read `changes`, `breaking_changes` and `action_required` and adapt before `effective_at`. A `security` release may run earlier only with `expedite`, a note its security quorum signed. The feed describes; the chain decides: a release counts once the Base app contract has allowed its `compose_hash` for `notice_hours`, or the quorum signed its expedite, which the release verifier checks without trusting this feed. Public.
+         * @description Newest `announced_at` first: `announced` releases not yet running, the `active` one the attested CVM runs, then `retired` and `withdrawn` ones. A release is announced at least `notice_hours` before it may run, so read `changes`, `breaking_changes` and `action_required` and adapt before `effective_at`. A `security` release may run earlier only with `expedite`, a note its security quorum signed. The feed describes; the chain decides: a release counts once the app contract on Ethereum has allowed its `compose_hash` for `notice_hours`, or the quorum signed its expedite, which the release verifier checks without trusting this feed. Public.
          */
         get: operations["listReleases"];
         put?: never;
@@ -971,7 +971,6 @@ export interface components {
         DeletionPreview: {
             near_account_id: string;
             beneficiary: string;
-            native_balance: string;
             public: {
                 asset_id: string;
                 symbol: string | null;
@@ -1488,6 +1487,7 @@ export interface components {
             delivered?: string | null;
             expires_at?: string | null;
             refund_to?: string | null;
+            deposit_seen_at?: string;
             refund_tx_hash?: string | null;
             failure_reason?: string | null;
             policy_record?: {
@@ -3611,7 +3611,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;
@@ -3749,7 +3749,7 @@ export interface operations {
                         } | null;
                         warnings: {
                             /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
+                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
                             detail: string;
                             /** Format: date-time */
                             available_at?: string;

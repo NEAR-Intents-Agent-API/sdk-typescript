@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.3
+
+- Regenerated API types. `DeletionPreview` no longer has `native_balance`: the API stopped
+  reading the custody account's native NEAR, which still goes to the sponsor (`beneficiary`).
+  Code that read it must drop it.
+- Deposit execution details and results add optional `deposit_seen_at`, the first time the API saw
+  funds (or processing) for the address. A payment that lands after the address expired reopens
+  the deposit instead of leaving it `expired`.
+- Dry swap and withdrawal `warnings` add `policy_transaction_limit_exceeded` (an amount above the
+  policy's per-transaction limit).
+- Regenerated descriptions: a withdrawal preview counts toward the wallet's 1,000 custody
+  operations per rolling 24 hours at the provider (was 100). NEAR sent by `nativeNearTransfer`, or
+  attached as a `nativeNearCall` deposit, must land where `destinations` allows. A confidential
+  bridged withdrawal preview values its `fee`.
+- Native NEAR transfers and calls read `SUCCESS` only once the chain finalizes the requested
+  transaction; `native_transaction_failed`, `native_transaction_mismatch` and
+  `native_transaction_unconfirmed` are possible outcomes. Status and history return
+  `signature: null` for native requests; only the signing call returns the signature.
+
 ## 0.7.2
 
 - `AgentApiError.retryAfterSeconds`: the response's `Retry-After` header in whole seconds
