@@ -248,7 +248,7 @@ refusals for a request that runs now: no operation exists, nothing is charged, a
 when it dispatches. `insufficient_balance` carries `error.availableAmount`, the available figure
 (see `getBalances`). A dry swap or withdrawal never refuses for these reasons; it warns:
 `quote.warnings[].code` is one of `policy_action_denied`, `policy_destination_denied`,
-`policy_asset_denied`, `policy_schedule_denied`, `spend_price_unavailable`,
+`policy_asset_denied`, `policy_transaction_limit_exceeded`, `policy_schedule_denied`, `spend_price_unavailable`,
 `spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
 `policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
 (with `available_amount`), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
@@ -285,11 +285,15 @@ const signed = await assistant.nativeEvmSignTypedData(agentId, {
 await assistant.nativeNearTransfer(agentId, { to: "bob.near", amount: "1000000000000000000000" });
 ```
 
-Native methods skip `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval`: a
-signed EVM or Solana transaction, or typed data such as a permit, can move everything at that
-address. NEAR transfers and calls take an idempotency key like other actions; every native request
-is recorded in history as type `native`. The NEAR Intents contracts are never a signing recipient
-or call target.
+Native methods skip `budget`, `timelock_ms`, `schedule` and `owner_approval`: a signed EVM or
+Solana transaction, or typed data such as a permit, can move everything at that address. NEAR a
+`nativeNearTransfer` sends, or a `nativeNearCall` attaches as its deposit, must land where
+`destinations` allows (judged as a `withdraw` on chain `near`). NEAR transfers and calls take an
+idempotency key like other actions; every native request is recorded in history as type `native`.
+A NEAR transfer or call reads `SUCCESS` only once the chain finalizes the transaction the request
+asked for; a failed one reads `FAILED` (`native_transaction_failed`). The signing methods return
+the signature once; status and history show `signature: null`. The NEAR Intents contracts are
+never a signing recipient or call target.
 
 ## Change the rules
 
@@ -380,7 +384,7 @@ Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshie
 carries an `Idempotency-Key`. Omit it and the SDK generates one and returns it with the result as
 `result.idempotencyKey`. A withdrawal preview (`withdraw` with `dry: true`) carries one too: it
 needs the grant and a key, an identical preview under the same key replays its result for 60
-seconds. The API sets no preview cap: each preview counts toward the wallet's 100 custody
+seconds. The API sets no preview cap: each preview counts toward the wallet's 1,000 custody
 operations per rolling 24 hours at the provider. A swap quote
 (`swap` with `dry: true`) needs neither. To survive a crash, create and store the key **before**
 sending:
