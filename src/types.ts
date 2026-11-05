@@ -117,5 +117,17 @@ export type EvmSignMessageRequest = RequestBody<"nativeEvmSignMessage">;
 export type EvmSignTransactionRequest = RequestBody<"nativeEvmSignTransaction">;
 export type SolanaSignMessageRequest = RequestBody<"nativeSolanaSignMessage">;
 export type SolanaSignTransactionRequest = RequestBody<"nativeSolanaSignTransaction">;
+export type EvmSignIntentRequest = RequestBody<"nativeEvmSignIntent">;
+export type SolanaSignIntentRequest = RequestBody<"nativeSolanaSignIntent">;
+/** A NEAR Intents payload signed by the agent's EVM or Solana key, with `signed_data` to publish. */
+export type IntentSignature = Success<"nativeEvmSignIntent"> | Success<"nativeSolanaSignIntent">;
+export type SolanaSignInRequest = RequestBody<"nativeSolanaSignIn">;
+/** A Sign-In-With-Solana signature and `signed_message`, the exact text signed. */
+export type SolanaSignIn = Success<"nativeSolanaSignIn">;
+export type SolanaSignTransferRequest = RequestBody<"nativeSolanaSignTransfer">;
+/** The `sign_intent` rules of `native.evm` or `native.solana`. */
+export type SignIntentRules = NonNullable<
+  NonNullable<NonNullable<Policy["native"]>["evm"]>["sign_intent"]
+>;
 /** An EVM or Solana signature and the address that made it. */
 export type NativeSignature = Success<"nativeEvmSignTypedData">;

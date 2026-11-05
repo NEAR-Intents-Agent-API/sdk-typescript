@@ -295,6 +295,43 @@ asked for; a failed one reads `FAILED` (`native_transaction_failed`). The signin
 the signature once; status and history show `signature: null`. The NEAR Intents contracts are
 never a signing recipient or call target.
 
+### NEAR Intents payloads from the EVM or Solana key
+
+The EVM and Solana keys sign NEAR Intents payloads only through `nativeEvmSignIntent` and
+`nativeSolanaSignIntent`, each fenced by its own `sign_intent` rules (`sign_message` never opens
+them). The payload is canonical JSON text, `transfer` intents only, signed for the key's own
+Intents account:
+
+```ts
+native: {
+  evm: {
+    sign_typed_data: [], sign_message: false, sign_transaction: false,
+    sign_intent: {
+      receivers: ["treasury.near"],      // accounts a transfer may pay
+      one_click_deposits: true,          // 1Click deposits paying the key or a receiver back
+      withdrawals: [{ chain: "base", address: "0x…" }], // 1Click deposits paying out here
+      max_slippage_bps: 100,             // slippage plus 1Click's fee, 0–300 (default 100)
+    },
+  },
+},
+```
+
+```ts
+const { signed_data } = await assistant.nativeEvmSignIntent(agentId, { payload });
+// Publish signed_data as is: intents.near (execute_intents), 1Click or a solver relay.
+```
+
+A transfer to a 1Click deposit address is checked against 1Click's own status for that address:
+the quote must refund the key, pay the key, a receiver or a listed withdrawal address, and be paid
+with exactly its `amountIn`. A payload paying only such deposits may be due up to 96 hours ahead
+(1Click's own deadline); anything else within 300 seconds. `destinations`, `assets`, `limits` and
+`budget` do not apply to these rules. Freezing the account refuses new payloads, but a payload
+signed before the freeze stays publishable until its deadline.
+
+`nativeSolanaSignIn` signs a Sign-In-With-Solana login for a domain in `native.solana.sign_in`;
+`nativeSolanaSignTransfer` signs one SOL or SPL transfer to a `recipient` that `destinations`
+allows, under `native.solana.sign_transfer`.
+
 ## Change the rules
 
 A policy change is one owner signature over the complete new policy. Read it, edit it, keep the
@@ -464,7 +501,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
 | Funding and recovery | `deposit`, `recover` |
-| The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignTransaction`, `nativeSolanaSignMessage`, `nativeSolanaSignTransaction` |
+| The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
 | Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
 

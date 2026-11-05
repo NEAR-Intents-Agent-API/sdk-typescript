@@ -555,9 +555,29 @@ export interface paths {
         put?: never;
         /**
          * Sign an EIP-191 message with the agent's EVM key
-         * @description Needs `native.evm.sign_message`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.evm.sign_message`. Text or bytes that are a NEAR Intents payload (they hold `verifying_contract`, or `signer_id` with `intents`) are refused with `intents_payload_use_sign_intent`: sign those with `sign-intent`. A deployment that sets `SIGN_MESSAGE_INTENTS_ENABLED` signs them here instead, with none of `sign-intent`'s checks, so this switch then amounts to full control of the key's NEAR Intents account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
          */
         post: operations["nativeEvmSignMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/evm/sign-intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a NEAR Intents transfer payload with the agent's EVM key
+         * @description Needs `native.evm.sign_intent`; `sign_message` does not open it. Signs `payload` as an ERC-191 message with the key behind `wallet.evm_account_id`, which, as a lowercase `0x` address (the spelling NEAR Intents uses), must be the payload `signer_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) that 1Click reports as `PENDING_DEPOSIT` and whose `recipient` is, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `rebates`, `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, no `appFees` except whole-number fees to 1Click's own fee account (`5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd` on `intents.near`, `2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805` on `intents.far`; 1Click writes it into every quote that swaps or bridges), and a `slippageTolerance` that, with that fee added, is at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted), paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and due no later than the quote's `deadline`. Anything else is `policy_destination_denied`, with the reason in `detail`; 1Click being down or rate limited refuses with `provider_unavailable` or `provider_rate_limited`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "erc191", payload, signature }` with the signature as `secp256k1:` and base58: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeEvmSignIntent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -584,6 +604,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/native/solana/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with Solana to a listed domain
+         * @description Needs `domain` listed in `native.solana.sign_in`. Takes the fields of a wallet's Sign-In-With-Solana `signIn` input and writes the message itself, as the wallet standard's `createSignInMessageText` does, with `wallet.solana_account_id` as the address: `domain`, `statement` (one line of printable ASCII), `uri` (an `https` URI on `domain`), `version` (`1`), `chain_id` (`mainnet` or `solana:mainnet`), `nonce` (8 to 64 letters and digits), `issued_at` (RFC 3339 UTC ending in `Z`, within 300 seconds of now) and `expiration_time` (required, still ahead, at most 10 minutes after `issued_at`). `not_before`, `request_id` and `resources` are not taken. The message always ends with a time the API checked, so the signature serves only as this login: never as a NEAR Intents payload, nor as a passkey (WebAuthn) signature for the key's NEAR Intents account. Answers the signature and `signed_message`, the exact text signed: hand the relying party its UTF-8 bytes, the base58 `signature` and `account_id`. The provider's signature is checked against the agent's key and that text before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Recorded in history as type `native`, with the domain as `details.target`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeSolanaSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents/{agent_id}/native/solana/sign-message": {
         parameters: {
             query?: never;
@@ -595,9 +635,49 @@ export interface paths {
         put?: never;
         /**
          * Sign an off-chain message with the agent's Solana key
-         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused (`validation_failed`), and so are bytes that are a NEAR Intents payload (`intents_payload_use_sign_intent`, unless the deployment sets `SIGN_MESSAGE_INTENTS_ENABLED`): sign those with `sign-intent`. Any other bytes are signed as sent. The check reads the bytes, and a 32-byte digest that its standard hashes first cannot be read, so the other signature standards NEAR Intents accepts can be signed here: this switch amounts to full control of this key's NEAR Intents account (the lowercase hex of the public key behind `wallet.solana_account_id`), without the receiver checks of `sign-intent`. Give it only to an agent trusted with that account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
          */
         post: operations["nativeSolanaSignMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/solana/sign-intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a NEAR Intents transfer payload with the agent's Solana key
+         * @description Needs `native.solana.sign_intent`; `sign_message` does not open it. Signs the UTF-8 bytes of `payload` with the agent's Ed25519 key. The payload's `signer_id` must be that key's NEAR Intents account, the lowercase hex of the 32-byte key behind `wallet.solana_account_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) that 1Click reports as `PENDING_DEPOSIT` and whose `recipient` is, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `rebates`, `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, no `appFees` except whole-number fees to 1Click's own fee account (`5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd` on `intents.near`, `2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805` on `intents.far`; 1Click writes it into every quote that swaps or bridges), and a `slippageTolerance` that, with that fee added, is at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted), paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and due no later than the quote's `deadline`. Anything else is `policy_destination_denied`, with the reason in `detail`; 1Click being down or rate limited refuses with `provider_unavailable` or `provider_rate_limited`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "raw_ed25519", payload, public_key, signature }` with both keys in `ed25519:` and base58 form: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeSolanaSignIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/native/solana/sign-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign one SOL or token transfer to a listed destination with the agent's Solana key
+         * @description Needs `native.solana.sign_transfer`; the full-control `sign_transaction` is not needed. Reads `unsigned_tx`, a base64 legacy or version 0 transaction message, before anything is signed, and signs it only as one transfer: SOL by a System Program `Transfer` to `recipient`, or one SPL Token or Token-2022 `TransferChecked` into the associated token account of `recipient`, with the agent as its authority. Besides the transfer the message may hold one associated-token-account `CreateIdempotent` for that account, paid by the agent, and a compute unit limit and price whose priority fee is at most 1,000,000 lamports; nothing else. The agent (`wallet.solana_account_id`) must be the only signer and pay the fee, every account must be in the message (no address lookup tables) and no account may appear twice. Anything else is refused with 403 `solana_transaction_forbidden`, the reason in `detail`. `recipient` must be a destination the policy allows, judged as a `withdraw` on chain `sol` with no memo (`policy_destination_denied`). Amounts, `assets`, `limits` and `budget` are not checked yet: this stops transfers to arbitrary recipients, but does not yet limit how much is sent. A durable nonce is not a transfer, so a signed transaction lands only while its blockhash is recent. Nothing is broadcast; the caller sends the signed transaction. The provider's signature is checked against the agent's key and the message before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. The record carries `recipient` as `details.target`, the amount as `details.amount` and the transfer as read in `details.message_json`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         */
+        post: operations["nativeSolanaSignTransfer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -871,10 +951,30 @@ export interface components {
                         primary_types?: string[];
                     }[];
                     sign_message: boolean;
+                    sign_intent?: {
+                        receivers: string[];
+                        one_click_deposits: boolean;
+                        withdrawals?: {
+                            chain: string;
+                            address: string;
+                        }[];
+                        max_slippage_bps?: number;
+                    };
                     sign_transaction: boolean;
                 };
                 solana: {
+                    sign_in?: string[];
                     sign_message: boolean;
+                    sign_intent?: {
+                        receivers: string[];
+                        one_click_deposits: boolean;
+                        withdrawals?: {
+                            chain: string;
+                            address: string;
+                        }[];
+                        max_slippage_bps?: number;
+                    };
+                    sign_transfer?: boolean;
                     sign_transaction: boolean;
                 };
             };
@@ -1400,7 +1500,7 @@ export interface components {
             type: "native";
             details: {
                 /** @enum {string} */
-                method: "near_sign_message" | "near_transfer" | "near_call" | "evm_sign_typed_data" | "evm_sign_message" | "evm_sign_transaction" | "solana_sign_message" | "solana_sign_transaction";
+                method: "near_sign_message" | "near_transfer" | "near_call" | "evm_sign_typed_data" | "evm_sign_message" | "evm_sign_intent" | "evm_sign_transaction" | "solana_sign_in" | "solana_sign_message" | "solana_sign_intent" | "solana_sign_transfer" | "solana_sign_transaction";
                 /** @enum {string} */
                 chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
                 account_id: string | null;
@@ -4967,6 +5067,119 @@ export interface operations {
             };
         };
     };
+    nativeEvmSignIntent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    payload: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                        signed_data: {
+                            /** @constant */
+                            standard: "erc191";
+                            payload: string;
+                            /** Format: starts_with */
+                            signature: string;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
     nativeEvmSignTransaction: {
         parameters: {
             query?: never;
@@ -5075,6 +5288,122 @@ export interface operations {
             };
         };
     };
+    nativeSolanaSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    domain: string;
+                    statement?: string;
+                    uri?: string;
+                    /** @constant */
+                    version?: "1";
+                    /** @enum {string} */
+                    chain_id?: "mainnet" | "solana:mainnet";
+                    nonce: string;
+                    issued_at: string;
+                    expiration_time: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                        signed_message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
     nativeSolanaSignMessage: {
         parameters: {
             query?: never;
@@ -5093,6 +5422,228 @@ export interface operations {
                      * @enum {string}
                      */
                     encoding?: "utf8" | "hex" | "base64";
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeSolanaSignIntent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    payload: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @enum {string} */
+                        chain: "near" | "ethereum" | "polygon" | "base" | "arbitrum" | "optimism" | "bsc" | "avalanche" | "hyperevm" | "hood" | "solana";
+                        account_id: string;
+                        signature: string;
+                        signed_data: {
+                            /** @constant */
+                            standard: "raw_ed25519";
+                            payload: string;
+                            /** Format: starts_with */
+                            public_key: string;
+                            /** Format: starts_with */
+                            signature: string;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    nativeSolanaSignTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    unsigned_tx: string;
+                    recipient: string;
                 };
             };
         };
