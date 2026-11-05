@@ -96,7 +96,7 @@ import type { Policy } from "@near-intents-agent-api/sdk";
 const policy: Policy = {
   frozen: false,
   actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw"
-  confidential: false, // true also allows private balances and confidential routes
+  confidential: false, // true also allows the confidential balance and confidential routes
   owner_approval: false, // true makes every outgoing action wait for the owner's vote
   assets: "any", // or the exact asset ids the agent may spend
   limits: {
