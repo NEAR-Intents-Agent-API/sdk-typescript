@@ -13,6 +13,7 @@ import type {
   BalancesView,
   ContainmentView,
   DepositRequest,
+  EvmSignIntentRequest,
   EvmSignMessageRequest,
   EvmSignTransactionRequest,
   EvmSignTypedDataRequest,
@@ -20,6 +21,7 @@ import type {
   GenerateIntentResponseOf,
   GrantView,
   HistoryPage,
+  IntentSignature,
   IntentType,
   NativeSignature,
   NearCallRequest,
@@ -36,8 +38,12 @@ import type {
   ScheduledPage,
   Signature,
   SignRequest,
+  SolanaSignIn,
+  SolanaSignInRequest,
+  SolanaSignIntentRequest,
   SolanaSignMessageRequest,
   SolanaSignTransactionRequest,
+  SolanaSignTransferRequest,
   StatusResponse,
   StatusResponseOf,
   SubmitIntentRequest,
@@ -571,6 +577,24 @@ export class AgentApi {
     });
   }
 
+  /**
+   * Signs a NEAR Intents payload (canonical JSON text, `transfer` intents only) with the agent's
+   * EVM key as ERC-191. Needs `native.evm.sign_intent`: it pays only that rule's `receivers`, and
+   * checked 1Click deposits with `one_click_deposits` or `withdrawals`. Publish `signed_data` as is.
+   * A freeze refuses new payloads but cannot recall one already signed.
+   */
+  nativeEvmSignIntent(
+    agentId: string,
+    request: EvmSignIntentRequest,
+    options: RequestOptions = {},
+  ): Promise<IntentSignature> {
+    return this.call(endpoints.nativeEvmSignIntent, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
   /** Signs a raw EVM transaction; nothing is broadcast. Needs `native.evm.sign_transaction`. */
   nativeEvmSignTransaction(
     agentId: string,
@@ -584,6 +608,22 @@ export class AgentApi {
     });
   }
 
+  /**
+   * Signs a Sign-In-With-Solana login the API writes from these fields, as
+   * `wallet.solana_account_id`. Needs `domain` in `native.solana.sign_in`.
+   */
+  nativeSolanaSignIn(
+    agentId: string,
+    request: SolanaSignInRequest,
+    options: RequestOptions = {},
+  ): Promise<SolanaSignIn> {
+    return this.call(endpoints.nativeSolanaSignIn, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
   /** Signs a message as `wallet.solana_account_id`. Needs `native.solana.sign_message`. */
   nativeSolanaSignMessage(
     agentId: string,
@@ -591,6 +631,38 @@ export class AgentApi {
     options: RequestOptions = {},
   ): Promise<NativeSignature> {
     return this.call(endpoints.nativeSolanaSignMessage, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /**
+   * Signs a NEAR Intents payload with the agent's Solana key (raw Ed25519), under
+   * `native.solana.sign_intent`, the same rules as {@link AgentApi.nativeEvmSignIntent}.
+   */
+  nativeSolanaSignIntent(
+    agentId: string,
+    request: SolanaSignIntentRequest,
+    options: RequestOptions = {},
+  ): Promise<IntentSignature> {
+    return this.call(endpoints.nativeSolanaSignIntent, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /**
+   * Signs a Solana transaction message only if it is one SOL or SPL transfer to `recipient`, which
+   * `destinations` must allow; nothing is broadcast. Needs `native.solana.sign_transfer`.
+   */
+  nativeSolanaSignTransfer(
+    agentId: string,
+    request: SolanaSignTransferRequest,
+    options: RequestOptions = {},
+  ): Promise<NativeSignature> {
+    return this.call(endpoints.nativeSolanaSignTransfer, {
       params: { agent_id: agentId },
       body: request,
       ...options,

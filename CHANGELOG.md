@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.4
+
+- `nativeEvmSignIntent` and `nativeSolanaSignIntent`: the agent's EVM or Solana key signs a NEAR
+  Intents payload (canonical JSON text, `transfer` intents only, signer = that key's Intents
+  account) and answers `signed_data` to publish as is to `intents.near`, 1Click or a solver relay.
+  They need the new `native.evm.sign_intent` / `native.solana.sign_intent` rules
+  (`SignIntentRules`): `{ receivers, one_click_deposits, withdrawals?, max_slippage_bps? }`.
+  `receivers` are the accounts a transfer may pay; with `one_click_deposits` a transfer may also
+  fund a 1Click deposit address whose quote pays the key or a listed receiver and refunds the key;
+  `withdrawals` (`[{ chain, address }]`) lets such a deposit pay out to a listed address on another
+  chain. Slippage plus 1Click's own fee must stay within `max_slippage_bps` (0–300, default 100).
+  A payload paying only such deposits may be due up to 96 hours ahead; anything else within 300
+  seconds. These rules are the key's own: `destinations`, `assets`, `limits` and `budget` do not
+  apply. A freeze refuses new payloads but cannot recall one already signed.
+- `nativeSolanaSignIn` (Sign-In-With-Solana for a domain in `native.solana.sign_in`) and
+  `nativeSolanaSignTransfer` (one SOL or SPL transfer to a `recipient` that `destinations` allows,
+  under `native.solana.sign_transfer`, without the full-control `sign_transaction`).
+- Regenerated API types: native `method` adds `evm_sign_intent`, `solana_sign_in`,
+  `solana_sign_intent` and `solana_sign_transfer`; policy `native.solana` adds `sign_in`,
+  `sign_intent` and `sign_transfer`, `native.evm` adds `sign_intent`.
+
 ## 0.7.3
 
 - Regenerated API types. `DeletionPreview` no longer has `native_balance`: the API stopped
