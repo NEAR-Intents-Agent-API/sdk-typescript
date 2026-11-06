@@ -59,7 +59,10 @@ import type {
 export const DEFAULT_BASE_URL = "https://api.agentsonintents.com";
 
 export type AgentApiOptions = {
-  /** Partner API key (`naa_…`). Server-side only: never ship it to a browser. */
+  /**
+   * Partner API key from the partner portal, sent as `X-API-Key`. Treat it as an opaque string.
+   * Server-side only: never ship it to a browser.
+   */
   apiKey: string;
   /** API origin. Defaults to {@link DEFAULT_BASE_URL}; HTTP is accepted for localhost only. */
   baseUrl?: string;
@@ -131,8 +134,8 @@ export class AgentApi {
       throw new Error("baseUrl must use HTTPS");
     if (url.username || url.password || url.search || url.hash || url.pathname !== "/")
       throw new Error("baseUrl must be a plain origin");
-    if (!/^naa_[A-Za-z0-9_-]{43}$/.test(options.apiKey))
-      throw new Error("apiKey is not a naa_ key");
+    if (typeof options.apiKey !== "string" || options.apiKey.trim() === "")
+      throw new Error("apiKey must be a non-empty string");
     if (options.grantToken !== undefined && !grantTokenPattern.test(options.grantToken))
       throw new Error("grantToken is not an ngt_ token");
     const maxResponseBytes =
@@ -252,15 +255,19 @@ export class AgentApi {
   /**
    * Every audit event of one execution, each with a `c2sp.org/tlog-proof@v1` against the latest
    * notary-signed checkpoint of the API's transparency log. An event that checkpoint does not yet
-   * cover reads `PENDING`.
+   * cover reads `PENDING`. Send `from_size` (the size of your trusted checkpoint, as a decimal
+   * string) to receive a consistency proof from it, which `verifyOperationProof` requires to accept
+   * a checkpoint beyond the trusted one.
    */
   getOperationProof(
     agentId: string,
     correlationId: string,
+    query: { from_size?: string } = {},
     options: RequestOptions = {},
   ): Promise<OperationProof> {
     return this.call(endpoints.getOperationProof, {
       params: { agent_id: agentId, correlation_id: correlationId },
+      query,
       ...options,
     });
   }

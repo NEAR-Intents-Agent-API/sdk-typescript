@@ -6527,13 +6527,11 @@ export interface operations {
                         };
                         limits: {
                             daily_agents: number;
-                            api_keys: number;
                             requests_per_minute: number;
                             key_requests_per_minute: number;
                         };
                         usage: {
                             agents_last_24_hours: number;
-                            api_keys: number;
                             requests_this_minute: number;
                         };
                         /** Format: date-time */

@@ -11,6 +11,8 @@ export {
   AgentApiRequestError,
   AgentApiResponseTooLargeError,
 } from "./errors.js";
+export type { Checkpoint } from "./generated/transparency/checkpoint.js";
+export { fetchWitnessCheckpoint } from "./generated/transparency/checkpoint-witness.js";
 export { NoteError } from "./generated/transparency/note.js";
 export {
   type OperationProofDocument,

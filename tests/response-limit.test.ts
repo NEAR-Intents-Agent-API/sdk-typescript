@@ -7,7 +7,7 @@ import {
   createGrantCredential,
 } from "../src/index.js";
 
-const apiKey = `naa_${"a".repeat(43)}`;
+const apiKey = "test-partner-api-key";
 const agentId = "a".repeat(64);
 const encoder = new TextEncoder();
 

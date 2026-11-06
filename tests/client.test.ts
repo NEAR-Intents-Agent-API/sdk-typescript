@@ -13,7 +13,7 @@ import {
   type QuoteResponse,
 } from "../src/index.js";
 
-const apiKey = `naa_${"a".repeat(43)}`;
+const apiKey = "test-partner-api-key";
 const agentId = "a".repeat(64);
 
 test("client preserves payload, places credentials and idempotency only in headers", async () => {
@@ -285,6 +285,17 @@ test("Retry-After reaches the error in seconds, from delay-seconds or an HTTP da
       return true;
     });
   }
+});
+
+test("apiKey is an opaque string: any non-empty value is accepted, an empty one is not", () => {
+  const baseUrl = "https://api.test";
+  for (const key of ["a".repeat(47), "eyJhbGciOiJSUzI1NiJ9.e30.c2ln", "x"])
+    assert.doesNotThrow(() => new AgentApi({ baseUrl, apiKey: key }));
+  for (const key of ["", "   "])
+    assert.throws(
+      () => new AgentApi({ baseUrl, apiKey: key }),
+      /apiKey must be a non-empty string/,
+    );
 });
 
 test("client refuses credential-bearing or insecure origins before fetch", () => {

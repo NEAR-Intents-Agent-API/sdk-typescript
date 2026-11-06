@@ -19,7 +19,7 @@ Give an AI agent its own agent account on NEAR Intents, let its owner sign the s
 once, and let the agent swap, transfer and withdraw inside those rules.
 
 - One method per endpoint, plain TypeScript types for every request and response.
-- Runs on your **backend**. It holds your API key, so it never belongs in a browser.
+- Runs on your **backend**. It holds your partner API key, so it never belongs in a browser.
 - No wallet signers, no React hooks, no automatic retries. Types only, no runtime schemas.
 - Offline verification of operation proofs, and grant-token and idempotency-key helpers.
 
@@ -38,7 +38,7 @@ Requires Node.js 24+.
 
 | Who | Proves itself with | Does what |
 |---|---|---|
-| **Your backend** | API key (`naa_…`) | Creates agents, reads state, prepares owner actions |
+| **Your backend** | Partner API key | Creates agents, reads state, prepares owner actions |
 | **The owner** (NEAR account, EVM wallet or passkey) | A wallet signature, once per change | Creates the agent, sets its rules (the *policy*), issues grants, freezes, deletes |
 | **The agent** (an assistant, bot or session) | A grant token (`ngt_…`) | Swaps, transfers and withdraws inside the owner's policy |
 
@@ -47,14 +47,20 @@ the policy says *what* any grant may do, where funds may go and how much.
 
 ## Setup
 
-Create an API key in the [partner dashboard](https://partners.near-intents.org/) and keep it out of git:
+Create a partner API key in the [partner portal](https://partners.near-intents.org/) and keep it out of git.
+The portal shows a key once and you can hold up to 10 live keys. A key expires 365 days after it is
+created. To rotate it, create a new key, deploy it, then revoke the old one in the portal. A
+revoked key stops new dispatches at once and every other request within 30 seconds. Keys created
+before the partner portal are retired: the API refuses them with `api_key_retired`, so create a new
+one.
 
 > [!CAUTION]
-> The `naa_…` key identifies your backend. Never ship it to a browser, mobile app, prompt or log.
+> The partner API key identifies your backend. Never ship it to a browser, mobile app, prompt or log.
+> Treat it as an opaque string: the SDK sends it as `X-API-Key` and does not parse it.
 
 ```sh
-# .env
-NEAR_INTENTS_AGENT_API_KEY=naa_...
+# .env: partner API key from the partner portal
+NEAR_INTENTS_AGENT_API_KEY=
 ```
 
 ```ts
@@ -406,20 +412,42 @@ that, read `details.expected_amount_out`, the provider's estimate; never treat i
 `getOperationProof` returns an execution's audit trail with a transparency-log proof per event.
 `verifyOperationProof` checks it offline, without trusting the API: each `PROVEN` event's opening
 hashes to a leaf the checkpoint includes, the checkpoint carries the log's and the notary's
-signatures, and the opening describes that event. Pin the log origin yourself.
+signatures, and the opening describes that event. A signed log alone cannot prove it was not rolled
+back, so you also pass a **trusted checkpoint**: one you retained from an earlier verification, or
+the head of the checkpoint witness, which `fetchWitnessCheckpoint` reads and verifies. Pin the log
+origin and the witness key yourself; never take either from an API response.
 
 ```ts
-const proof = await api.getOperationProof(agentId, correlationId);
-const verified = verifyOperationProof(proof, "api.agentsonintents.com/log");
+import { fetchWitnessCheckpoint, verifyOperationProof } from "@near-intents-agent-api/sdk";
+
+const origin = "api.agentsonintents.com/log";
+// The witness public key (hex) pinned in the attested deployment. Keep it in your own config.
+const witnessKey = "598165a18b588f504e159c0e2573d73983ae22bf15cf80d36902276d63a11101";
+
+const trusted = await fetchWitnessCheckpoint("https://api.agentsonintents.com", origin, witnessKey);
+const proof = await api.getOperationProof(agentId, correlationId, {
+  from_size: String(trusted.size),
+});
+const verified = verifyOperationProof(proof, origin, trusted);
 ```
+
+`fetchWitnessCheckpoint(api, origin, witnessKey)` sends a fresh nonce to `/tee/witness` over HTTPS
+and checks the witness's signature, so a lying API cannot forge the head. Fetch it immediately
+before requesting the proof. `from_size` makes the API include a consistency proof from that head;
+a server behind it answers 409 `transparency_checkpoint_behind`. The verifier refuses a proof that
+does not extend `trusted`, a smaller or forked tree, or a checkpoint that differs from the one the
+event proofs use. `Checkpoint` is the type of `trusted` and of `verified.checkpoint`. To keep your
+own state instead of asking the witness, persist `verified.checkpoint` and pass it next time, but
+only after the attestation below passes. A retained checkpoint proves continuation from itself,
+not that the log is current.
 
 `verified.proven` lists each event's leaf index, audited fields, checkpoint and `evidence`: the
 result it recorded, with its settlement transaction hashes, checked against the opening's
 `evidenceHash`. `PENDING` events wait for the next checkpoint. A proof that does not hold, or
-evidence altered after it was committed, throws `NoteError` or `ProofError`. The
-TDX quote is not checked here: to tie the notary keys to attested code, verify the dstack
-attestation in `proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and
-compare its `report_data` with `verified.birthReportData`.
+evidence altered after it was committed, throws `NoteError` or `ProofError`. The TDX quote is not
+checked here: to tie the notary keys to attested code, verify the attestation in
+`proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and compare its
+`report_data` with `verified.birthReportData`.
 
 ## Idempotency
 
@@ -469,7 +497,11 @@ over the size budget throws `AgentApiResponseTooLargeError`. Both keep the origi
 before retrying. `retryable` means the identical call under the same `idempotencyKey` can succeed
 after `availableAt` or `retryAfterSeconds` (the response's `Retry-After` header); server errors (`internal_error`, `database_busy`,
 `transaction_unconfirmed`) are retryable because the call may have taken effect, so repeat them
-under the same key, never a new one. `retryable: false` says only that repeating will not help
+under the same key, never a new one. A rejected partner API key is `invalid_api_key` (401, the key
+is not valid or no longer live; its `detail` names the portal), `api_key_retired` (401, not
+retryable: the key was created before the partner portal, so create a new one there) or, while the
+portal cannot be reached for a key it has never answered for, `key_verification_unavailable`
+(503, retryable). `retryable: false` says only that repeating will not help
 now, never that nothing was sent, and an absent flag proves nothing (it reads `false`).
 `route_unavailable` means no route for this pair or amount: repeating the same request will not
 help, so try another amount or pair. `provider_refused` (400, not retryable) is the provider's
@@ -489,7 +521,7 @@ it too.
 
 | Option | Default | |
 |---|---|---|
-| `apiKey` | required | Your `naa_…` key. Backend only. |
+| `apiKey` | required | Your partner API key from the partner portal, as an opaque non-empty string. Backend only. |
 | `baseUrl` | `https://api.agentsonintents.com` | HTTPS origin; HTTP allowed for `localhost` |
 | `grantToken` | none | Prefer `api.forGrant(token)`, which returns a separate client per grant |
 | `timeoutMs` | 150 s for swap, withdraw, transfer, shield, unshield; 65 s otherwise | |
@@ -509,9 +541,9 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof` |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `fetchWitnessCheckpoint` |
 
-`getPartnerQuota()` reports how many agents and API keys you may create and what you have used.
+`getPartnerQuota()` reports how many agents you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,
 `GenerateIntentRequest`, `OwnerWallet`, …).
 
@@ -526,7 +558,7 @@ a client in another language, generate it from the same document.
 
 | Repository | |
 |---|---|
-| [api](https://github.com/NEAR-Intents-Agent-API/api) | The Agent API and partner dashboard |
+| [api](https://github.com/NEAR-Intents-Agent-API/api) | The Agent API and partner portal |
 | [examples](https://github.com/NEAR-Intents-Agent-API/examples) | Runnable scripts for every flow in this README |
 | [skills](https://github.com/NEAR-Intents-Agent-API/skills) | Agent skills for building on the API in any language |
 | [demo](https://github.com/NEAR-Intents-Agent-API/demo) · [agent-connect](https://github.com/NEAR-Intents-Agent-API/agent-connect) | Full applications built on this SDK |
