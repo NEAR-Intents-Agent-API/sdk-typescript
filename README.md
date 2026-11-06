@@ -13,6 +13,8 @@
 
 </div>
 
+> The Agent API is an experimental, mainnet-only beta. You and your users may lose all assets used with it, or lose access to them. It is operated by NEAR Technologies Limited.
+
 Give an AI agent its own agent account on NEAR Intents, let its owner sign the spending rules
 once, and let the agent swap, transfer and withdraw inside those rules.
 
@@ -83,6 +85,10 @@ const tokens = await api.getTokens(); // public: every asset an agent can use
 Creating an agent is an **owner action**: your backend prepares it, the owner's wallet signs it,
 your backend submits it. Every owner action follows the same four steps.
 
+Before the owner signs, show the Owner Terms, OutLayer's terms and the required risk notice, and
+keep evidence of acceptance. `preview.summary` ends with the notice. Show it again before the owner
+funds the wallet.
+
 ```ts
 import type { Policy } from "@near-intents-agent-api/sdk";
 
@@ -90,7 +96,7 @@ import type { Policy } from "@near-intents-agent-api/sdk";
 const policy: Policy = {
   frozen: false,
   actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw"
-  confidential: false, // true also allows private balances and confidential routes
+  confidential: false, // true also allows the confidential balance and confidential routes
   owner_approval: false, // true makes every outgoing action wait for the owner's vote
   assets: "any", // or the exact asset ids the agent may spend
   limits: {
