@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+
+Partner API keys now come from the partner portal (https://partners.near-intents.org), not from
+the API. Needs an API with portal-issued keys.
+
+- Breaking: `AgentApi` no longer checks the shape of `apiKey`; it accepts any non-empty string
+  (an empty or whitespace-only value still throws at construction). The key is opaque: the portal
+  shows it once, it expires 365 days after creation, a partner holds up to 10 live keys, and
+  revoking one in the portal stops new dispatches at once and other requests within 30 seconds.
+  Rotate by creating a new key, deploying it and revoking the old one. Keys created before the
+  partner portal are retired.
+- Breaking: `PartnerQuotaView` (`getPartnerQuota`) drops `limits.api_keys` and `usage.api_keys`.
+  Code that read them must drop them.
+- New error code `api_key_retired` (401, `layer: "auth"`, not retryable): the key was created
+  before the partner portal; create a new one in the portal. `invalid_api_key` now names the portal
+  in its `detail`, and `key_verification_unavailable` (503, retryable) is answered while the portal
+  is down for a key it has not answered for before. `AgentApiError` is unchanged: branch on `code`.
+- Breaking: `verifyOperationProof(document, origin, trusted)` requires a trusted `Checkpoint` as a
+  third argument and returns the verified `checkpoint`. It refuses a proof whose checkpoint does not
+  extend the trusted one (rollback, fork, smaller tree, missing consistency path) and a response
+  without a signed `checkpoint`. The two-argument form is gone.
+- Breaking: `getOperationProof(agentId, correlationId, query?, options?)` takes the new `query`
+  (`{ from_size?: string }`) before `options`. Callers that passed request options as the third
+  argument must move them to the fourth.
+- New: `fetchWitnessCheckpoint(api, origin, witnessKey)` fetches the checkpoint witness's head
+  from `/tee/witness` over HTTPS and verifies its signature against a witness key you pin. Use that
+  head as `trusted` and its size as `from_size`. New type export `Checkpoint`.
+- Regenerated API types: the quotas change above. The operation proof response's `checkpoint` and
+  `consistency` are now what `verifyOperationProof` checks. The generated transparency code also
+  gains Intel Trust Authority token, TDX quote and attested-key verifiers (not exported from the
+  package); their parser dependencies (`@peculiar/asn1-schema`, `@peculiar/asn1-x509`, `jose`) are
+  dev dependencies of the SDK because the published bundle does not import them.
+
 ## 0.7.4
 
 - `nativeEvmSignIntent` and `nativeSolanaSignIntent`: the agent's EVM or Solana key signs a NEAR

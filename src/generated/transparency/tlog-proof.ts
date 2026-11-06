@@ -68,7 +68,22 @@ export function parseTlogProof(encoded: Uint8Array): TlogProof {
 
 export function verifyTlogProof(encoded: Uint8Array, policy: ProofPolicy): VerifiedProof {
   const proof = parseTlogProof(encoded);
-  const note = openNote(proof.checkpoint, [policy.log, ...policy.cosigners]);
+  const { checkpoint, cosigned } = verifySignedCheckpoint(proof.checkpoint, policy);
+  verifyInclusion(
+    proof.index,
+    checkpoint.size,
+    policy.leaf(proof.extra),
+    proof.proof,
+    checkpoint.root,
+  );
+  return { checkpoint, index: proof.index, extra: proof.extra, cosigned };
+}
+
+export function verifySignedCheckpoint(
+  encoded: Uint8Array,
+  policy: Pick<ProofPolicy, "origin" | "log" | "cosigners">,
+) {
+  const note = openNote(encoded, [policy.log, ...policy.cosigners]);
   const signed = (verifier: NoteVerifier) =>
     note.verified.find(({ name, keyId }) => name === verifier.name && keyId === verifier.keyId);
   if (!signed(policy.log)) throw new NoteError("checkpoint lacks the log signature");
@@ -80,12 +95,5 @@ export function verifyTlogProof(encoded: Uint8Array, policy: ProofPolicy): Verif
   const checkpoint = parseCheckpoint(note.text);
   if (checkpoint.origin !== policy.origin)
     throw new NoteError(`checkpoint origin ${checkpoint.origin} is not ${policy.origin}`);
-  verifyInclusion(
-    proof.index,
-    checkpoint.size,
-    policy.leaf(proof.extra),
-    proof.proof,
-    checkpoint.root,
-  );
-  return { checkpoint, index: proof.index, extra: proof.extra, cosigned };
+  return { checkpoint, cosigned };
 }

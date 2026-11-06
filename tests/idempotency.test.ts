@@ -17,7 +17,7 @@ const idempotencyKeySchema = {
   },
 };
 
-const apiKey = `naa_${"a".repeat(43)}`;
+const apiKey = "test-partner-api-key";
 const agentId = "a".repeat(64);
 const move = { asset: "near", amount: "1" };
 const swap = { origin_asset: "near", destination_asset: "usdc", amount: "1" };
