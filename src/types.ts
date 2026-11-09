@@ -91,7 +91,7 @@ export type StatusType = StatusResponse["type"];
 /** The agent-run money moves; the other status types are owner intents. */
 export type ExecutionType = Extract<
   StatusType,
-  "swap" | "withdraw" | "transfer" | "shield" | "unshield" | "deposit"
+  "swap" | "limit_order" | "withdraw" | "transfer" | "shield" | "unshield" | "deposit"
 >;
 export type Status = StatusResponse["status"];
 export type StatusResponseOf<T extends StatusType> = Extract<StatusResponse, { type: T }>;
@@ -99,13 +99,24 @@ export type ExecutionDetails = Schemas["ExecutionDetails"];
 export type HistoryPage = Success<"getHistory">;
 export type OperationProof = Success<"getOperationProof">;
 export type AuditProof = OperationProof["events"][number];
+/** A dry swap, withdrawal or limit order: what it would do and every rule it would fail. */
 export type QuoteResponse = Extract<Success<"swap">, { dry: true }>;
 export type SwapRequest = RequestBody<"swap">;
+export type LimitOrderRequest = RequestBody<"placeLimitOrder">;
 export type WithdrawRequest = RequestBody<"withdraw">;
 export type TransferRequest = RequestBody<"transfer">;
 export type BalanceMoveRequest = RequestBody<"shield">;
 export type DepositRequest = RequestBody<"deposit">;
 export type RecoverRequest = RequestBody<"recover">;
+
+// ---- Limit orders
+/** An order as the custody provider reports it, in 1Click's own snake_case fields. */
+export type LimitOrderView = Success<"getLimitOrder">;
+export type LimitOrderPage = Success<"listLimitOrders">;
+/** What the provider reports of a cancelled order; every field may be absent. */
+export type CancelLimitOrderResult = Success<"cancelLimitOrder">;
+/** One round of a batch cancel: call again until `complete` is true. */
+export type CancelAllLimitOrdersResult = Success<"cancelAllLimitOrders">;
 
 // ---- Native: the agent's own NEAR, EVM and Solana keys outside NEAR Intents
 export type SignRequest = RequestBody<"nativeNearSignMessage">;

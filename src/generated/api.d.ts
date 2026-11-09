@@ -344,6 +344,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/limit-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the agent's limit orders
+         * @description The custody provider's list of this agent's orders, newest first, in 1Click's own snake_case fields. `open=true` lists only orders still resting; `limit` (1 to 100) and `offset` page it. The list does not refresh an order's status; read one order for its live state.
+         */
+        get: operations["listLimitOrders"];
+        put?: never;
+        /**
+         * Place a resting limit order
+         * @description Places a limit order on the agent's public NEAR Intents balance, or with `confidential: true` on its confidential balance, and funds it in full. A `sell` spends `quantity` of `base_asset`; a `buy` spends the `quote_asset` that `quantity` costs at `price`, rounded up. The order rests until it fills, is cancelled or reaches `deadline` (default and maximum seven days); proceeds and refunds return to the balance that funded it. A live order requires `X-Grant-Token` for a live grant, and the account policy must allow `limit_order` (and `confidential` for a confidential order). It then runs through the same rules as a swap on the asset it spends: assets, per-asset limits, actions per hour, the USD budget (charged on the spent value when the order is placed, and not given back when it is cancelled), `timelock_ms`, `schedule` and `owner_approval`. `destinations` does not apply. Its price is judged against the market when it is placed (and again when a timelock or approval releases it): a sell at most `limit_order.max_deviation_bps` (100 when omitted) below the base asset's USD price over the quote asset's, a buy at most that far above, or it is refused with `policy_price_deviation_exceeded`; with no fresh price for either asset it is refused with `market_price_unavailable`. A timelocked order whose release finds no fresh price waits and is released again for a few minutes before it fails with `market_price_unavailable`; one priced outside the bound at release fails at once. An owner's approve vote refused for the price releases nothing: the order stays held (see `owner_approval`). A better price than the market is not limited. The order must be worth at least 0.1 USD (`amount_too_low`); an order whose spent asset has no fresh USD price skips this check, and the provider applies its own minimum. `SUCCESS` means the order is funded and resting, not filled: `details.order_id` names it, and the limit-orders reads below follow its fills. 1Click adds its own app fee to every order (`app_fees` on the order), which is not an API fee. With `dry: true` it needs only the API key (no grant, no `Idempotency-Key`), places no order and returns `spend` (USD value and budget left), `quote` (what the order spends and what a full fill delivers) and `warnings` listing each rule a live order would fail under its code.
+         */
+        post: operations["placeLimitOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/limit-orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one limit order
+         * @description The order's live state from 1Click: `fill_status`, `partial_fills`, `payouts` and `is_payout_status_final`, which is true once nothing more can be paid out or refunded for it.
+         */
+        get: operations["getLimitOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/limit-orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel one limit order
+         * @description Cancels a resting order; what is unfilled is refunded to the agent's balance. Requires `X-Grant-Token` for a live grant. Cancelling spends no budget and waits for no timelock, schedule or approval, and it works while the agent is frozen and after the policy stops allowing `limit_order`: the owner's rules never trap an order. Only an archived or deleted agent is refused. The USD budget charged when the order was placed is not given back. The reply is the order as the provider reports it with every field optional, and `{}` when the reply carries none: read the order for its state.
+         */
+        post: operations["cancelLimitOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/limit-orders/cancel-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel all of the agent's limit orders
+         * @description Cancels up to 50 resting orders a call; repeat until `complete` is true. Requires `X-Grant-Token` for a live grant and has the same exemptions as cancelling one order: it works while frozen and after the policy drops `limit_order`.
+         */
+        post: operations["cancelAllLimitOrders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents/{agent_id}/withdraw": {
         parameters: {
             query?: never;
@@ -884,7 +968,7 @@ export interface components {
         };
         Policy: {
             frozen: boolean;
-            actions: ("swap" | "transfer" | "withdraw")[];
+            actions: ("swap" | "transfer" | "withdraw" | "limit_order")[];
             confidential: boolean;
             owner_approval: boolean;
             assets: "any" | string[];
@@ -977,6 +1061,9 @@ export interface components {
                     sign_transfer?: boolean;
                     sign_transaction: boolean;
                 };
+            };
+            limit_order?: {
+                max_deviation_bps: number;
             };
         };
         GenerateIntentResponse: {
@@ -1094,6 +1181,7 @@ export interface components {
                 balance: string | null;
             }[];
             assets_lost: boolean;
+            open_limit_orders: number;
             /** @enum {string} */
             retirement: "provider_delete" | "credential_erase";
         };
@@ -1417,6 +1505,22 @@ export interface components {
                 label: string;
             } | null;
             /** @constant */
+            type: "limit_order";
+            details: components["schemas"]["ExecutionDetails"];
+        } | {
+            correlation_id: string;
+            agent_id: string | null;
+            /** @enum {string} */
+            status: "PENDING_SIGNATURE" | "QUEUED" | "PENDING_APPROVAL" | "PENDING_DEPOSIT" | "PROCESSING" | "SUCCESS" | "REFUNDED" | "FAILED" | "UNCERTAIN" | "NEEDS_REVIEW";
+            failure_code: string | null;
+            created_at: string;
+            updated_at: string;
+            dispatch_committed_at: string | null;
+            grant: {
+                id: string;
+                label: string;
+            } | null;
+            /** @constant */
             type: "withdraw";
             details: components["schemas"]["ExecutionDetails"];
         } | {
@@ -1563,6 +1667,11 @@ export interface components {
                 chain?: string;
                 recipient?: string;
                 memo?: string;
+                /** @enum {string} */
+                side?: "sell" | "buy";
+                price?: string;
+                quantity?: string;
+                deadline?: string;
                 confidential?: boolean;
             };
             near_account_id?: string;
@@ -1580,10 +1689,12 @@ export interface components {
             expected_amount_out?: string;
             deposit_address?: string | null;
             memo?: string | null;
+            available_amount?: string;
             min_amount?: string | null;
             min_amount_out?: string | null;
             requested_min_amount_out?: string;
             requested_asset?: string;
+            order_id?: string | null;
             delivered?: string | null;
             expires_at?: string | null;
             refund_to?: string | null;
@@ -1670,6 +1781,32 @@ export interface components {
         TimelockView: {
             delay_ms: number;
             scheduled_count: number;
+        };
+        QuoteResponse: {
+            /** @constant */
+            dry: true;
+            /** @enum {string} */
+            type: "swap" | "withdraw" | "limit_order";
+            quote: {
+                [key: string]: unknown;
+            };
+            spend: {
+                amount_usd: string | null;
+                budget: components["schemas"]["BudgetView"];
+            };
+            owner_approval: boolean;
+            fee: {
+                amount_usd: string;
+                percent: string;
+            } | null;
+            warnings: {
+                /** @enum {string} */
+                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is";
+                detail: string;
+                /** Format: date-time */
+                available_at?: string;
+                available_amount?: string;
+            }[];
         };
     };
     responses: never;
@@ -3662,9 +3799,9 @@ export interface operations {
     swap: {
         parameters: {
             query?: never;
-            header: {
-                /** @description Stable key for one logical request. Replays with the same key and body return the original result; a different body is refused with `idempotency_conflict`. */
-                "Idempotency-Key": string;
+            header?: {
+                /** @description Stable key for one logical request. Replays with the same key and body return the original result; a different body is refused with `idempotency_conflict`. Required for a live request; a `dry` preview needs none. */
+                "Idempotency-Key"?: string;
             };
             path: {
                 agent_id: string;
@@ -3686,37 +3823,618 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Success: a `dry` preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteResponse"];
+                };
+            };
             /** @description Success */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatusResponse"] | {
-                        /** @constant */
-                        dry: true;
-                        /** @enum {string} */
-                        type: "swap" | "withdraw";
-                        quote: {
-                            [key: string]: unknown;
-                        };
-                        spend: {
-                            amount_usd: string | null;
-                            budget: components["schemas"]["BudgetView"];
-                        };
-                        owner_approval: boolean;
-                        fee: {
-                            amount_usd: string;
-                            percent: string;
-                        } | null;
-                        warnings: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    listLimitOrders: {
+        parameters: {
+            query?: {
+                open?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: ({
+                            order_id: string;
+                            order_type?: string;
                             /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
-                            detail: string;
-                            /** Format: date-time */
-                            available_at?: string;
-                            available_amount?: string;
-                        }[];
+                            side?: "sell" | "buy";
+                            base_asset?: string;
+                            quote_asset?: string;
+                            quantity?: string;
+                            price?: string;
+                            fill_status?: string;
+                            payout_status?: string;
+                            is_payout_status_final?: boolean;
+                            deposited_amount?: string;
+                            partial_fills?: unknown[] | null;
+                            payouts?: {
+                                [key: string]: unknown;
+                            } | null;
+                            app_fees?: ({
+                                recipient?: string;
+                                fee?: number;
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                            deadline?: string | null;
+                            created_at?: string;
+                            transfer_intent_hash?: string | null;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    placeLimitOrder: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stable key for one logical request. Replays with the same key and body return the original result; a different body is refused with `idempotency_conflict`. Required for a live request; a `dry` preview needs none. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    base_asset: string;
+                    quote_asset: string;
+                    /** @enum {string} */
+                    side: "sell" | "buy";
+                    quantity: string;
+                    price: string;
+                    /** Format: date-time */
+                    deadline?: string;
+                    /** @default false */
+                    confidential?: boolean;
+                    /** @default false */
+                    dry?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Success: a `dry` preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteResponse"];
+                };
+            };
+            /** @description Success */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    getLimitOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        order_id: string;
+                        order_type?: string;
+                        /** @enum {string} */
+                        side?: "sell" | "buy";
+                        base_asset?: string;
+                        quote_asset?: string;
+                        quantity?: string;
+                        price?: string;
+                        fill_status?: string;
+                        payout_status?: string;
+                        is_payout_status_final?: boolean;
+                        deposited_amount?: string;
+                        partial_fills?: unknown[] | null;
+                        payouts?: {
+                            [key: string]: unknown;
+                        } | null;
+                        app_fees?: ({
+                            recipient?: string;
+                            fee?: number;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                        deadline?: string | null;
+                        created_at?: string;
+                        transfer_intent_hash?: string | null;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    cancelLimitOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        order_id?: string;
+                        order_type?: string;
+                        /** @enum {string} */
+                        side?: "sell" | "buy";
+                        base_asset?: string;
+                        quote_asset?: string;
+                        quantity?: string;
+                        price?: string;
+                        fill_status?: string;
+                        payout_status?: string;
+                        is_payout_status_final?: boolean;
+                        deposited_amount?: string;
+                        partial_fills?: unknown[] | null;
+                        payouts?: {
+                            [key: string]: unknown;
+                        } | null;
+                        app_fees?: ({
+                            recipient?: string;
+                            fee?: number;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                        deadline?: string | null;
+                        created_at?: string;
+                        transfer_intent_hash?: string | null;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    cancelAllLimitOrders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        known: number;
+                        cancelled: number;
+                        failed: number;
+                        remaining: number;
+                        complete: boolean;
                     };
                 };
             };
@@ -3824,38 +4542,22 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Success: a `dry` preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteResponse"];
+                };
+            };
             /** @description Success */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatusResponse"] | {
-                        /** @constant */
-                        dry: true;
-                        /** @enum {string} */
-                        type: "swap" | "withdraw";
-                        quote: {
-                            [key: string]: unknown;
-                        };
-                        spend: {
-                            amount_usd: string | null;
-                            budget: components["schemas"]["BudgetView"];
-                        };
-                        owner_approval: boolean;
-                        fee: {
-                            amount_usd: string;
-                            percent: string;
-                        } | null;
-                        warnings: {
-                            /** @enum {string} */
-                            code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "high_fee" | "asset_delivered_as_is";
-                            detail: string;
-                            /** Format: date-time */
-                            available_at?: string;
-                            available_amount?: string;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["StatusResponse"];
                 };
             };
             400: {
@@ -4381,6 +5083,21 @@ export interface operations {
                         dry?: boolean;
                         /** @constant */
                         type: "swap";
+                    } | {
+                        base_asset: string;
+                        quote_asset: string;
+                        /** @enum {string} */
+                        side: "sell" | "buy";
+                        quantity: string;
+                        price: string;
+                        /** Format: date-time */
+                        deadline?: string;
+                        /** @default false */
+                        confidential?: boolean;
+                        /** @default false */
+                        dry?: boolean;
+                        /** @constant */
+                        type: "limit_order";
                     } | {
                         asset: string;
                         amount: string;

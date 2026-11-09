@@ -1,6 +1,56 @@
 # Changelog
 
-## 0.8.0 (unreleased)
+## 0.8.1
+
+Limit orders, and the API types regenerated from API main a10cbbf6 (near/near-intents-agent-api#109
+and #143: dry previews declared as 200 `QuoteResponse`; a held limit order is re-priced when the
+owner approves). Needs an API with limit orders for the new methods; everything else still works
+against the previous API. Nothing in this release breaks code that reads responses; code that
+builds a `DeletionPreview` literal (a test fixture, a demo mode) must add `open_limit_orders`.
+
+- New: `placeLimitOrder(agentId, request, options?)` places a resting order on the agent's public
+  NEAR Intents balance, or with `confidential: true` on its confidential balance, and funds it in
+  full. Like `swap` it needs a grant and an idempotency key (the SDK generates one and returns it
+  as `idempotencyKey`) and gets the 150 s settlement budget. `dry: true` previews it with the API key
+  alone (no grant, no idempotency key), makes no provider call and returns a `QuoteResponse` whose `warnings` list every
+  rule a live order would fail. `SUCCESS` means the order is funded and resting, not filled:
+  `details.order_id` names it.
+- New reads and cancels: `listLimitOrders(agentId, { open?, limit?, offset? })` (newest first,
+  `{ data }`; `limit` at most 100), `getLimitOrder(agentId, orderId)` (live `fill_status`,
+  `partial_fills`, `payouts`, `is_payout_status_final`), `cancelLimitOrder(agentId, orderId)` and
+  `cancelAllLimitOrders(agentId)` (up to 50 a call; repeat until `complete` is true). Both cancels
+  need a grant but no timelock, schedule or approval, and work while the agent is frozen or the
+  policy no longer allows `limit_order`. The USD budget charged when an order was placed is not
+  given back by a cancel.
+- New types: `LimitOrderRequest`, `LimitOrderView`, `LimitOrderPage`, `CancelLimitOrderResult`,
+  `CancelAllLimitOrdersResult`. `ExecutionType` gains `limit_order`, so
+  `StatusResponseOf<"limit_order">` is the status of a placed order.
+- Policy: `actions` may now include `limit_order`, and the new optional `limit_order:
+  { max_deviation_bps }` (0 to 300, default 100) bounds how far worse than the market a price may
+  be. A policy without `limit_order` makes the API cancel the agent's open orders, as does a
+  freeze. A confidential order also needs `confidential`.
+- New error codes: `policy_price_deviation_exceeded` (the price is worse than the market by more
+  than `max_deviation_bps`), `market_price_unavailable` (no fresh price for either asset),
+  `limit_order_not_found` and `limit_orders_open` (an agent cannot be deleted while orders are not
+  payout-final). `amount_too_low` also refuses an order worth under 0.1 USD. `AgentApiError` is
+  unchanged: branch on `code`.
+- Regenerated API types: quote `warnings[].code` adds `amount_too_low`,
+  `policy_price_deviation_exceeded` and `market_price_unavailable`; the quote's `type` adds
+  `limit_order`; `RecoverRequest.request` accepts a `limit_order` (recover an UNCERTAIN order under
+  its original key); `ExecutionDetails` gains `order_id`, `side`, `price`, `quantity` and `deadline`
+  in its request terms; `DeletionPreview` gains `open_limit_orders`.
+- Regenerated API types: `ExecutionDetails.available_amount` is what the spent balance holds
+  (`insufficient_balance`, atomic units) or what the agent's NEAR account holds
+  (`custody_native_balance_required`, yoctoNEAR), kept on the operation so a replay or status read
+  states it too. On `custody_native_balance_required` the error's `availableAmount` and `minAmount`
+  now carry what the account holds and what the call costs, in yoctoNEAR (before, only
+  `insufficient_balance` and `amount_too_low` stated an amount).
+- API behaviour, no type change: a withdrawal of a token to a NEAR account with no storage on that
+  token's contract (a fresh 1Click deposit address for NEAR USDC) is refused with
+  `invalid_address` (409), as is its preview, where it used to answer `validation_failed` or return
+  a quote. Register the receiver's storage first, or move the funds inside NEAR Intents.
+
+## 0.8.0 (2026-11-06)
 
 Partner API keys now come from the partner portal (https://partners.near-intents.org), not from
 the API. Needs an API with portal-issued keys.

@@ -11,6 +11,8 @@ import type {
   BalanceMoveRequest,
   BalanceSource,
   BalancesView,
+  CancelAllLimitOrdersResult,
+  CancelLimitOrderResult,
   ContainmentView,
   DepositRequest,
   EvmSignIntentRequest,
@@ -23,6 +25,9 @@ import type {
   HistoryPage,
   IntentSignature,
   IntentType,
+  LimitOrderPage,
+  LimitOrderRequest,
+  LimitOrderView,
   NativeSignature,
   NearCallRequest,
   NearTransferRequest,
@@ -74,7 +79,7 @@ export type AgentApiOptions = {
   fetch?: typeof fetch;
   /**
    * Grant token (`ngt_…`) sent as `X-Grant-Token` on delegated calls (swap, withdraw, transfer,
-   * shield, …). Prefer `api.forGrant(token)`, which returns a separate client per grant.
+   * shield, limit orders, …). Prefer `api.forGrant(token)`, which returns a separate client per grant.
    */
   grantToken?: string;
 };
@@ -99,6 +104,7 @@ type Call = {
 
 const settlementEndpoints = new Set<EndpointDefinition>([
   endpoints.swap,
+  endpoints.placeLimitOrder,
   endpoints.withdraw,
   endpoints.transfer,
   endpoints.shield,
@@ -412,6 +418,95 @@ export class AgentApi {
     options: IdempotentOptions = {},
   ): Promise<QuoteResponse | IdempotentResult<StatusResponseOf<"swap">>> {
     return this.call(endpoints.swap, { params: { agent_id: agentId }, body: request, ...options });
+  }
+
+  /**
+   * Places a resting limit order on the agent's public NEAR Intents balance, or with
+   * `confidential: true` on its confidential balance, and funds it in full. The call answers once
+   * the order is funded: `SUCCESS` means it rests, not that it filled. Read the order with
+   * `details.order_id` through `getLimitOrder`. The policy must allow `limit_order` and price the
+   * order within `limit_order.max_deviation_bps` of the market. `dry: true` previews it, listing
+   * every rule a live order would fail as a warning; it needs no grant and no idempotency key.
+   */
+  placeLimitOrder(
+    agentId: string,
+    request: LimitOrderRequest & { dry: true },
+    options?: RequestOptions,
+  ): Promise<QuoteResponse>;
+  placeLimitOrder(
+    agentId: string,
+    request: LimitOrderRequest,
+    options?: IdempotentOptions,
+  ): Promise<IdempotentResult<StatusResponseOf<"limit_order">>>;
+  placeLimitOrder(
+    agentId: string,
+    request: LimitOrderRequest,
+    options: IdempotentOptions = {},
+  ): Promise<QuoteResponse | IdempotentResult<StatusResponseOf<"limit_order">>> {
+    return this.call(endpoints.placeLimitOrder, {
+      params: { agent_id: agentId },
+      body: request,
+      ...options,
+    });
+  }
+
+  /**
+   * The agent's limit orders as the custody provider lists them, newest first. `open: true` lists
+   * only orders still resting. A listed order's status is not refreshed: read one with
+   * `getLimitOrder` for its live state.
+   */
+  listLimitOrders(
+    agentId: string,
+    query: { open?: boolean; limit?: number; offset?: number } = {},
+    options: RequestOptions = {},
+  ): Promise<LimitOrderPage> {
+    return this.call(endpoints.listLimitOrders, {
+      params: { agent_id: agentId },
+      query,
+      ...options,
+    });
+  }
+
+  /** One order's live state: `fill_status`, `partial_fills`, `payouts` and `is_payout_status_final`. */
+  getLimitOrder(
+    agentId: string,
+    orderId: string,
+    options: RequestOptions = {},
+  ): Promise<LimitOrderView> {
+    return this.call(endpoints.getLimitOrder, {
+      params: { agent_id: agentId, order_id: orderId },
+      ...options,
+    });
+  }
+
+  /**
+   * Cancels a resting order and refunds what is unfilled to the agent's balance. Needs a grant but
+   * no timelock, schedule or approval, and works while the agent is frozen or the policy no longer
+   * allows `limit_order`. The USD budget charged when the order was placed is not given back.
+   */
+  cancelLimitOrder(
+    agentId: string,
+    orderId: string,
+    options: RequestOptions = {},
+  ): Promise<CancelLimitOrderResult> {
+    return this.call(endpoints.cancelLimitOrder, {
+      params: { agent_id: agentId, order_id: orderId },
+      ...options,
+    });
+  }
+
+  /**
+   * Cancels up to 50 resting orders per call; call again until `complete` is true. Needs a grant,
+   * with the same exemptions as {@link AgentApi.cancelLimitOrder}.
+   */
+  cancelAllLimitOrders(
+    agentId: string,
+    options: RequestOptions = {},
+  ): Promise<CancelAllLimitOrdersResult> {
+    return this.call(endpoints.cancelAllLimitOrders, {
+      params: { agent_id: agentId },
+      ...options,
+    });
   }
 
   /**
