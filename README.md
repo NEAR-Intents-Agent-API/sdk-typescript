@@ -101,7 +101,7 @@ import type { Policy } from "@near-intents-agent-api/sdk";
 // 1. The rulebook. It is always sent complete, and the owner signs all of it at once.
 const policy: Policy = {
   frozen: false,
-  actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw"
+  actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw" | "limit_order"
   confidential: false, // true also allows the confidential balance and confidential routes
   owner_approval: false, // true makes every outgoing action wait for the owner's vote
   assets: "any", // or the exact asset ids the agent may spend
@@ -263,9 +263,51 @@ when it dispatches. `insufficient_balance` carries `error.availableAmount`, the 
 `policy_asset_denied`, `policy_transaction_limit_exceeded`, `policy_schedule_denied`, `spend_price_unavailable`,
 `spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
 `policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
-(with `available_amount`), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
+(with `available_amount`), `amount_too_low`, `policy_price_deviation_exceeded`,
+`market_price_unavailable` (the last three for limit orders), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
 about the action and the destination instead of refusing. `quote.owner_approval` is true when
 the live request would wait in `PENDING_APPROVAL` for the owner.
+
+### Limit orders
+
+A limit order rests on the NEAR Intents order book until it fills, is cancelled or reaches its
+`deadline` (default and maximum seven days). The policy must list `limit_order` in `actions`, and
+`confidential` as well for `confidential: true` (funded from, and paid back to, the confidential
+balance). An optional `limit_order: { max_deviation_bps }` (0 to 300, default 100) bounds how far
+worse than the market the price may be: a sell that far below, a buy that far above. A better
+price is not limited. The order is judged like a swap on the asset it spends (assets, limits,
+actions per hour, USD budget, `timelock_ms`, `schedule`, `owner_approval`); `destinations` does
+not apply.
+
+```ts
+const order = {
+  base_asset: "nep141:wrap.near",
+  quote_asset: "nep141:usdt.tether-token.near",
+  side: "sell" as const, // "sell" spends `quantity` of base_asset; "buy" spends what it costs at `price`
+  quantity: "1000000000000000000000000", // base_asset, atomic units
+  price: "5.2", // quote units per one whole base unit, a plain decimal
+};
+const preview = await assistant.placeLimitOrder(agentId, { ...order, dry: true }); // no key, no provider call
+const placed = await assistant.placeLimitOrder(agentId, order); // SUCCESS = funded and resting, not filled
+const orderId = placed.details?.order_id;
+
+const open = await assistant.listLimitOrders(agentId, { open: true }); // { data: [...] }
+const live = await assistant.getLimitOrder(agentId, orderId); // fill_status, partial_fills, payouts
+await assistant.cancelLimitOrder(agentId, orderId); // unfilled funds return to the balance
+let round = await assistant.cancelAllLimitOrders(agentId); // up to 50 a call
+while (!round.complete) round = await assistant.cancelAllLimitOrders(agentId);
+```
+
+`placeLimitOrder` needs a grant and an idempotency key like a swap; the dry preview needs neither.
+Its warnings add `amount_too_low` (the order must be worth at least 0.1 USD),
+`policy_price_deviation_exceeded` and `market_price_unavailable` (no fresh price for either asset)
+to the codes of a swap preview, and the live request refuses with the same codes. Cancelling
+needs a grant but no timelock, schedule or approval, and works while the agent is frozen or the
+policy no longer allows `limit_order`; the USD budget charged when the order was placed is not
+given back. Freezing the agent, or applying a policy without `limit_order`, makes the API cancel
+its open orders. 1Click's own fee is in the order's `app_fees`. Deleting an agent is refused with
+`limit_orders_open` while orders are not payout-final (the deletion preview reports
+`open_limit_orders`).
 
 ## Native accounts
 
@@ -451,13 +493,14 @@ checked here: to tie the notary keys to attested code, verify the attestation in
 
 ## Idempotency
 
-Every write (`generateIntent`, `swap`, `withdraw`, `transfer`, `shield`, `unshield`, `deposit`)
+Every write (`generateIntent`, `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield`, `deposit`)
 carries an `Idempotency-Key`. Omit it and the SDK generates one and returns it with the result as
 `result.idempotencyKey`. A withdrawal preview (`withdraw` with `dry: true`) carries one too: it
 needs the grant and a key, an identical preview under the same key replays its result for 60
 seconds. The API sets no preview cap: each preview counts toward the wallet's 1,000 custody
 operations per rolling 24 hours at the provider. A swap quote
-(`swap` with `dry: true`) needs neither. To survive a crash, create and store the key **before**
+(`swap` with `dry: true`) and a limit-order preview (`placeLimitOrder` with `dry: true`) need
+neither. To survive a crash, create and store the key **before**
 sending:
 
 ```ts
@@ -513,7 +556,13 @@ proof that nothing was sent (a partial failure is `FAILED`): check its details a
 deciding to send new work. An execution the
 provider may have received returns `UNCERTAIN`; keep polling its `correlation_id`.
 `minAmount` is set on `amount_too_low` when the provider states the route minimum: that minimum in
-atomic units of the asset sent, so quote at least that. A refusal recorded against an operation
+atomic units of the asset sent, so quote at least that. `custody_native_balance_required` states
+the agent's NEAR shortfall the same way: `availableAmount` is what its NEAR account holds and
+`minAmount` what the call costs, in yoctoNEAR; a replay or status read keeps them as
+`details.available_amount` and `details.min_amount`. A withdrawal of a token to a NEAR account
+with no storage on that token's contract (a fresh 1Click deposit address) is refused with
+`invalid_address`, as is its preview: register the receiver's storage first or move the funds
+inside NEAR Intents. A refusal recorded against an operation
 keeps it as `details.min_amount` on the operation's status, so a replay under the same key states
 it too.
 
@@ -524,7 +573,7 @@ it too.
 | `apiKey` | required | Your partner API key from the partner portal, as an opaque non-empty string. Backend only. |
 | `baseUrl` | `https://api.agentsonintents.com` | HTTPS origin; HTTP allowed for `localhost` |
 | `grantToken` | none | Prefer `api.forGrant(token)`, which returns a separate client per grant |
-| `timeoutMs` | 150 s for swap, withdraw, transfer, shield, unshield; 65 s otherwise | |
+| `timeoutMs` | 150 s for swap, placeLimitOrder, withdraw, transfer, shield, unshield; 65 s otherwise | |
 | `maxResponseBytes` | 8 MiB | Checked before JSON parsing, including errors |
 | `fetch` | global `fetch` | For tests or instrumentation |
 
@@ -537,7 +586,8 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
-| Agent actions (need a grant) | `swap`, `withdraw`, `transfer`, `shield`, `unshield` |
+| Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield`, `cancelLimitOrder`, `cancelAllLimitOrders` |
+| Limit order reads | `listLimitOrders`, `getLimitOrder` |
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |

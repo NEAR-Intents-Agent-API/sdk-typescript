@@ -14,10 +14,15 @@ export function requestIdempotency(
   call: { body?: unknown; idempotencyKey?: string },
 ) {
   const dry =
-    (endpoint === endpoints.swap || endpoint === endpoints.withdraw) &&
+    (endpoint === endpoints.swap ||
+      endpoint === endpoints.withdraw ||
+      endpoint === endpoints.placeLimitOrder) &&
     (call.body as { dry?: boolean } | undefined)?.dry === true;
-  // A swap quote is keyless; a withdrawal preview is admitted only under a key, like the withdrawal.
-  const keyed = Boolean(endpoint.idempotency) && !(dry && endpoint === endpoints.swap);
+  // Swap and limit-order previews are keyless; a withdrawal preview is admitted only under a key,
+  // like the withdrawal.
+  const keyed =
+    Boolean(endpoint.idempotency) &&
+    !(dry && (endpoint === endpoints.swap || endpoint === endpoints.placeLimitOrder));
   const idempotencyKey =
     keyed && endpoint !== endpoints.recover && call.idempotencyKey === undefined
       ? createIdempotencyKey()

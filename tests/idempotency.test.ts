@@ -22,6 +22,13 @@ const agentId = "a".repeat(64);
 const move = { asset: "near", amount: "1" };
 const swap = { origin_asset: "near", destination_asset: "usdc", amount: "1" };
 const withdraw = { ...move, chain: "near", recipient: "owner.near" };
+const limitOrder = {
+  base_asset: "near",
+  quote_asset: "usdc",
+  side: "sell" as const,
+  quantity: "1",
+  price: "5",
+};
 
 test("each SDK write generates a request-local key and returns it without changing wire payloads", async () => {
   const calls: Array<{ key: string | null; body: unknown }> = [];
@@ -43,6 +50,7 @@ test("each SDK write generates a request-local key and returns it without changi
   const writes: Array<(options?: IdempotentOptions) => Promise<{ idempotencyKey: string }>> = [
     (options) => api.generateIntent({ type: "agent_freeze", agent_id: agentId }, options),
     (options) => api.swap(agentId, swap, options),
+    (options) => api.placeLimitOrder(agentId, limitOrder, options),
     (options) => api.withdraw(agentId, withdraw, options),
     (options) => api.transfer(agentId, { ...move, recipient: "owner.near" }, options),
     (options) => api.shield(agentId, move, options),
@@ -74,7 +82,7 @@ test("each SDK write generates a request-local key and returns it without changi
   assert.notEqual(concurrent[0].idempotencyKey, concurrent[1].idempotencyKey);
 });
 
-test("swap quotes and non-idempotency endpoints generate no keys; recovery only forwards its original key", async () => {
+test("swap and limit-order previews and non-idempotency endpoints generate no keys; recovery only forwards its original key", async () => {
   const keys: Array<string | null> = [];
   const api = new AgentApi({
     baseUrl: "https://api.test",
@@ -86,6 +94,11 @@ test("swap quotes and non-idempotency endpoints generate no keys; recovery only 
   });
   const results = [
     await api.swap(agentId, { ...swap, dry: true }),
+    await api.placeLimitOrder(agentId, { ...limitOrder, dry: true }),
+    await api.listLimitOrders(agentId),
+    await api.getLimitOrder(agentId, "order-1"),
+    await api.cancelLimitOrder(agentId, "order-1"),
+    await api.cancelAllLimitOrders(agentId),
     await api.getStatus(agentId),
     await api.getAgent(agentId),
     await api.submitIntent({

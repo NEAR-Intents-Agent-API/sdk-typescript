@@ -53,7 +53,9 @@ export class AgentApiResponseTooLargeError extends Error {
  * sending nothing. A FAILED or REFUNDED status is not that proof. `minAmount`, on
  * `amount_too_low`, is the route's minimum in atomic units of the asset sent, when the provider
  * states one. `availableAmount`, on `insufficient_balance`, is the balance the request could
- * spend, after queued or timelocked work, in atomic units.
+ * spend, after queued or timelocked work, in atomic units. On `custody_native_balance_required`
+ * they are what the agent's NEAR account holds (`availableAmount`) and what the call costs
+ * (`minAmount`), in yoctoNEAR.
  */
 export class AgentApiError extends Error {
   readonly status: number;
