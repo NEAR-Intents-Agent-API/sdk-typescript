@@ -130,6 +130,8 @@ export type SolanaSignMessageRequest = RequestBody<"nativeSolanaSignMessage">;
 export type SolanaSignTransactionRequest = RequestBody<"nativeSolanaSignTransaction">;
 export type EvmSignIntentRequest = RequestBody<"nativeEvmSignIntent">;
 export type SolanaSignIntentRequest = RequestBody<"nativeSolanaSignIntent">;
+/** 1Click's signed `POST /v0/quote` answer, sent unchanged in `one_click_quotes`. */
+export type OneClickQuote = NonNullable<EvmSignIntentRequest["one_click_quotes"]>[number];
 /** A NEAR Intents payload signed by the agent's EVM or Solana key, with `signed_data` to publish. */
 export type IntentSignature = Success<"nativeEvmSignIntent"> | Success<"nativeSolanaSignIntent">;
 export type SolanaSignInRequest = RequestBody<"nativeSolanaSignIn">;

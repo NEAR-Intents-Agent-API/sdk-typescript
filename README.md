@@ -364,23 +364,34 @@ native: {
       receivers: ["treasury.near"],      // accounts a transfer may pay
       one_click_deposits: true,          // 1Click deposits paying the key or a receiver back
       withdrawals: [{ chain: "base", address: "0x…" }], // 1Click deposits paying out here
-      max_slippage_bps: 100,             // slippage plus 1Click's fee, 0–300 (default 100)
+      max_slippage_bps: 100,             // value lost at minAmountOut, fees included, 0–300 (default 100)
     },
   },
 },
 ```
 
 ```ts
-const { signed_data } = await assistant.nativeEvmSignIntent(agentId, { payload });
+// One 1Click `POST /v0/quote` answer per deposit address the payload pays, sent unchanged.
+const quote = await fetch("https://1click.chaindefuser.com/v0/quote", { … }).then((r) => r.json());
+const { signed_data } = await assistant.nativeEvmSignIntent(agentId, {
+  payload,
+  one_click_quotes: [quote],
+});
 // Publish signed_data as is: intents.near (execute_intents), 1Click or a solver relay.
 ```
 
-A transfer to a 1Click deposit address is checked against 1Click's own status for that address:
-the quote must refund the key, pay the key, a receiver or a listed withdrawal address, and be paid
-with exactly its `amountIn`. A payload paying only such deposits may be due up to 96 hours ahead
-(1Click's own deadline); anything else within 300 seconds. `destinations`, `assets`, `limits` and
-`budget` do not apply to these rules. Freezing the account refuses new payloads, but a payload
-signed before the freeze stays publishable until its deadline.
+A transfer to a 1Click deposit address needs that deposit's live (`dry: false`) quote in
+`one_click_quotes` (at most two). The API checks 1Click's signature on it offline against 1Click's
+quote key, the same check as the 1Click SDK's `verifyQuoteSignature`, and never calls 1Click, so
+public (`intents.near`) and confidential (`intents.far`) deposits work the same way. The quote must
+refund the key, pay the key, a receiver or a listed withdrawal address, lose at most
+`max_slippage_bps` of value at its `minAmountOut` by 1Click's signed USD amounts (fees included),
+and be paid with exactly its `amountIn` (on `intents.far` as the `imt:` confidential token). A
+deposit 1Click has since closed is not seen; a late payment refunds to the key. A payload paying
+only such deposits may be due up to 96 hours ahead (1Click's own deadline); anything else within
+300 seconds. `destinations`, `assets`, `limits` and `budget` do not apply to these rules. Freezing
+the account refuses new payloads, but a payload signed before the freeze stays publishable until
+its deadline. A refused payload never reaches the wallet provider; a retry is judged again.
 
 `nativeSolanaSignIn` signs a Sign-In-With-Solana login for a domain in `native.solana.sign_in`;
 `nativeSolanaSignTransfer` signs one SOL or SPL transfer to a `recipient` that `destinations`
