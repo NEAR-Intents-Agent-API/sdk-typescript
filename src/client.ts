@@ -682,7 +682,8 @@ export class AgentApi {
   /**
    * Signs a NEAR Intents payload (canonical JSON text, `transfer` intents only) with the agent's
    * EVM key as ERC-191. Needs `native.evm.sign_intent`: it pays only that rule's `receivers`, and
-   * checked 1Click deposits with `one_click_deposits` or `withdrawals`. Publish `signed_data` as is.
+   * 1Click deposits with `one_click_deposits` or `withdrawals`, each proven by its signed 1Click
+   * quote in `one_click_quotes` (checked offline; 1Click is never called). Publish `signed_data` as is.
    * A freeze refuses new payloads but cannot recall one already signed.
    */
   nativeEvmSignIntent(

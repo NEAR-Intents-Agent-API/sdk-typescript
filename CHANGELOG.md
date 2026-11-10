@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.2
+
+Sign-intent 1Click deposits are proven by 1Click's signed quote (near/near-intents-agent-api#151).
+Types regenerated from that branch.
+
+- `nativeEvmSignIntent` / `nativeSolanaSignIntent` requests take optional `one_click_quotes`: one
+  unchanged 1Click `POST /v0/quote` answer (live, `dry: false`) per deposit address the payload
+  pays outside `receivers`, at most two. The API verifies 1Click's signature offline and no longer
+  reads 1Click's deposit status, so confidential (`intents.far`) deposits now work. A payload that
+  pays a 1Click deposit without its quote is refused with `policy_destination_denied`.
+- `max_slippage_bps` now bounds the value lost at the quote's `minAmountOut`, by 1Click's signed USD
+  amounts with every fee included, instead of `slippageTolerance` plus 1Click's fee.
+- New type `OneClickQuote`.
+
 ## 0.8.1
 
 Limit orders, and the API types regenerated from API main a10cbbf6 (near/near-intents-agent-api#109
