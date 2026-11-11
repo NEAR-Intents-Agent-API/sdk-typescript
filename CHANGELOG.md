@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+Payment receipts (near/near-intents-agent-api#155). Types regenerated from that merge
+(13543116). Needs an API with receipts for the new methods; everything else still works against
+the previous API.
+
+- New: `getReceipt(agentId, correlationId)` reads the receipt of one settled transfer,
+  withdrawal, swap, limit order or deposit, and `listReceipts(agentId, { type?, limit?, cursor? })`
+  lists them, newest first (`type` keeps one type; a page can be short or empty while
+  `next_cursor` is set). Each item carries `details` (the account's own view, with `usd_value?`,
+  `note?`, `grant_id?` and `policy_epoch?`) and a `receipt` that is `null` while `PENDING` and for
+  `UNLOGGED`. Shield, unshield and anything unsettled answer 409 `receipt_not_available`.
+- New request fields: optional `reference` on `transfer` and `withdraw` (1 to 128 printable ASCII
+  characters without spaces; kept in the API's record and committed to by the receipt, never sent
+  on chain, not checked for uniqueness) and optional private `note` on `transfer`, `withdraw`,
+  `swap`, `placeLimitOrder` and `deposit` (1 to 500 characters on one line; the account's own
+  record, never in a receipt).
+- New: `verifyReceipt(receipt, { origin, trusted, readTile })` checks a receipt of any type against
+  a trusted checkpoint and the log's tiles and returns its typed `terms`.
+  `verifyPaymentReceipt(receipt, { origin, trusted, readTile, expect })` is for a payee: it refuses
+  anything but a transfer or withdrawal and compares the terms with `expect` (`recipient`, `asset`,
+  `amount`, `reference`, and `chain` / `memo` for a withdrawal). It accepts only a public payment
+  by default; pass `expect.confidential: true` to accept a confidential one. Also exported:
+  `logTileReader(url)`, `parseReceiptTerms`, `LogUnavailableError`, `ReceiptNotCoveredError` and
+  the types `Receipt`, `ReceiptTerms`, `ReceiptType`, `TransferTerms`, `WithdrawTerms`,
+  `SwapTerms`, `LimitOrderTerms`, `DepositTerms`, `SettlementHashes`, `ExpectedPayment`,
+  `PaymentTerms`, `VerifiedReceipt`, `VerifiedPayment`, `TileReader`, plus `ReceiptItem` and
+  `ReceiptPage`.
+
 ## 0.8.2
 
 Sign-intent 1Click deposits are proven by 1Click's signed quote (near/near-intents-agent-api#151).
