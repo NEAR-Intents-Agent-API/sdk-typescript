@@ -41,6 +41,7 @@ export type Receipt = {
 
 const hashFields = [
   "intent_hash",
+  "transfer_intent_hash",
   "tx_hash",
   "destination_tx_hash",
   "settlement_tx_hash",
@@ -74,8 +75,11 @@ export type WithdrawTerms = SettlementHashes &
     readonly recipient: string;
     readonly confidential: boolean;
     readonly chain: string;
+    /** As requested; an explicit empty memo stays `""`. */
     readonly memo?: string;
     readonly reference?: string;
+    /** What the provider reported delivering, in the destination's units, when it reported it. */
+    readonly amount_out?: string;
   };
 
 export type SwapTerms = SettlementHashes &
@@ -130,7 +134,8 @@ export type PaymentTerms = TransferTerms | WithdrawTerms;
 
 /**
  * Reads one tile of the log by its tlog-tiles path; null when the log does not serve it (404).
- * Throw `LogUnavailableError` when the log cannot be read right now.
+ * Throw `LogUnavailableError` when the log cannot be read right now. A tile the trusted tree must
+ * contain that reads null is treated the same way: the log is behind or failing, not the receipt.
  */
 export type TileReader = (path: string) => Promise<Uint8Array | null>;
 
@@ -138,13 +143,18 @@ export type ExpectedPayment = {
   readonly recipient: string;
   /** The asset as requested. A NEAR withdrawal to chain `near` delivers native NEAR either way. */
   readonly asset: string;
+  /**
+   * The amount the payer sent, atomic units of `asset`. A transfer delivers exactly this. A
+   * withdrawal is debited this and delivers it less the network or bridge fee, in the destination
+   * chain's units: a withdrawal receipt proves the debit, never what arrived.
+   */
   readonly amount: string;
   readonly reference: string;
   /** Omit to accept either a public or a confidential payment. */
   readonly confidential?: boolean;
   /** A withdrawal's chain. Omit for a transfer: a withdrawal never satisfies an expectation without one. */
   readonly chain?: string;
-  /** A withdrawal's memo. Omitted means no memo: a payment with one never matches. */
+  /** A withdrawal's memo, exactly as requested, `""` included. Omitted means none was sent. */
   readonly memo?: string;
 };
 
@@ -178,6 +188,11 @@ export type VerifiedPayment = {
   readonly confidential: boolean;
   readonly chain?: string;
   readonly memo?: string;
+  /**
+   * A withdrawal only: what the provider reported delivering, in the destination's units, when it
+   * reported it. `amount` is the debit; confirm what arrived here or on the destination chain.
+   */
+  readonly amountOut?: string;
   /** The API's USD valuation of the amount at dispatch, six decimals; absent when it had no price. */
   readonly usdValue?: string;
   /** The grant the settlement was recorded under, when its event names one. */
@@ -185,9 +200,11 @@ export type VerifiedPayment = {
   /** Decimal; the policy epoch the settlement was recorded under, when its event names one. */
   readonly policyEpoch?: string;
   readonly intentHash?: string;
+  readonly transferIntentHash?: string;
   readonly txHash?: string;
   readonly destinationTxHash?: string;
   readonly settlementTxHash?: string;
+  readonly receiptHash?: string;
   readonly leafIndex: bigint;
   /** The settled event's evidence, as committed by the opening. */
   readonly evidence: Readonly<Record<string, unknown>>;
@@ -208,8 +225,8 @@ export class ReceiptNotCoveredError extends Error {
 }
 
 /**
- * The log did not answer a tile read: a network failure, a timeout or an HTTP error other than
- * 404. It says nothing about the receipt: verify again later.
+ * The log did not serve a tile the trusted tree must contain: a network failure, a timeout, an
+ * HTTP error, or a tile not there yet. It says nothing about the receipt: verify again later.
  */
 export class LogUnavailableError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -221,7 +238,7 @@ export class LogUnavailableError extends Error {
 /** The one audit event that records a settled execution. */
 export const SETTLED_EVENT = "execute.completed";
 /** The API's execution actions that settle with a receipt, and the public type each reads as. */
-export const RECEIPT_TYPES: ReadonlyMap<string, ReceiptType> = new Map<string, ReceiptType>([
+const RECEIPT_TYPES: ReadonlyMap<string, ReceiptType> = new Map<string, ReceiptType>([
   ["intents_transfer", "transfer"],
   ["confidential_transfer", "transfer"],
   ["withdraw", "withdraw"],
@@ -297,11 +314,8 @@ function settled(
   result: Record<string, unknown>,
   evidence: Record<string, unknown>,
 ) {
-  // The API reads `provider_status` before `status`; either one naming anything else refuses.
-  const statuses = [given(result.provider_status), given(result.status)].filter(
-    (status) => status !== undefined,
-  );
-  if (statuses.length === 0 || statuses.some((status) => status !== "success"))
+  // As the API reads it: `provider_status`, and `status` only when that is absent.
+  if ((given(result.provider_status) ?? given(result.status)) !== "success")
     throw new NoteError("the evidence does not show success");
   // A settlement the provider still calls pending is progress, never completion.
   if (
@@ -401,11 +415,16 @@ function termsOf(
   switch (type) {
     case "transfer":
       return { ...fields(["asset", "amount", "recipient"], ["reference"]), confidential };
-    case "withdraw":
+    case "withdraw": {
+      // The request commits an explicit empty memo, so it is kept apart from no memo.
+      const memo = given(request.memo);
       return {
-        ...fields(["asset", "amount", "recipient", "chain"], ["memo", "reference"]),
+        ...fields(["asset", "amount", "recipient", "chain"], ["reference"]),
+        ...(memo === undefined ? {} : { memo: text(memo, "memo") }),
         confidential,
+        ...fields([], ["amount_out"], reported),
       };
+    }
     case "swap":
       return {
         ...fields(["origin_asset", "destination_asset", "amount"], ["min_amount_out"]),
@@ -445,8 +464,8 @@ function termsOf(
  * event; and the evidence it commits to shows the success the API's completion rule requires,
  * whose terms it returns typed. `trusted` must come from a trusted witness or independently
  * retained state, never from the receipt's source. A receipt newer than `trusted` throws
- * `ReceiptNotCoveredError`, and a log that does not answer throws `LogUnavailableError` from
- * `logTileReader`: verify those again later. A `NoteError` or `ProofError` means the receipt does
+ * `ReceiptNotCoveredError`, and a log that does not answer, or does not serve a tile its tree must
+ * contain, throws `LogUnavailableError`: verify those again later. A `NoteError` or `ProofError` means the receipt does
  * not prove a settled execution.
  */
 export async function verifyReceipt(
@@ -491,7 +510,9 @@ export async function verifyReceipt(
 /**
  * Checks a receipt as `verifyReceipt` does, then that it is a transfer or withdrawal of exactly
  * `expect`. An incomplete `expect` throws `TypeError` before anything is read; any other type of
- * execution, or another payment, throws `NoteError`.
+ * execution, or another payment, throws `NoteError`. `amount` is what the payer sent: a transfer
+ * delivers it whole, a withdrawal delivers it less fees, so a payee owed an exact amount by
+ * withdrawal confirms the arrival itself, from `amountOut` when reported or on the chain.
  */
 export async function verifyPaymentReceipt(
   receipt: Receipt,
@@ -531,13 +552,16 @@ export async function verifyPaymentReceipt(
     ...present({
       chain,
       memo,
+      amountOut: terms.type === "withdraw" ? terms.amount_out : undefined,
       usdValue: terms.usd_value,
       grantId: verified.grantId,
       policyEpoch: verified.policyEpoch,
       intentHash: terms.intent_hash,
+      transferIntentHash: terms.transfer_intent_hash,
       txHash: terms.tx_hash,
       destinationTxHash: terms.destination_tx_hash,
       settlementTxHash: terms.settlement_tx_hash,
+      receiptHash: terms.receipt_hash,
     }),
     leafIndex: verified.leafIndex,
     evidence: verified.evidence,
@@ -551,9 +575,10 @@ function checkExpected(expect: ExpectedPayment) {
   for (const field of ["recipient", "asset", "amount", "reference"] as const)
     if (typeof expect[field] !== "string" || expect[field] === "")
       throw new TypeError(`expect.${field} must be a non-empty string`);
-  for (const field of ["chain", "memo"] as const)
-    if (expect[field] !== undefined && (typeof expect[field] !== "string" || expect[field] === ""))
-      throw new TypeError(`expect.${field} must be a non-empty string when given`);
+  if (expect.chain !== undefined && (typeof expect.chain !== "string" || expect.chain === ""))
+    throw new TypeError("expect.chain must be a non-empty string when given");
+  if (expect.memo !== undefined && typeof expect.memo !== "string")
+    throw new TypeError("expect.memo must be a string when given");
   if (expect.confidential !== undefined && typeof expect.confidential !== "boolean")
     throw new TypeError("expect.confidential must be a boolean when given");
 }
@@ -589,8 +614,9 @@ async function provenTile(readTile: TileReader, tile: TileId, size: bigint): Pro
     return row;
   }
   const full = width < TILE_WIDTH ? await readTile(tilePath(tile, TILE_WIDTH)) : null;
+  // The trusted tree commits to this tile, so its absence is the log's serving, not the receipt.
   if (!full)
-    throw new NoteError(
+    throw new LogUnavailableError(
       `the log did not serve tile ${path}, which its tree of size ${size} must contain`,
     );
   if (full.length !== FULL_TILE) throw new NoteError(`tile ${path} has the wrong size`);

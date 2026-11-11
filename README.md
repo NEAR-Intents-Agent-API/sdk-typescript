@@ -546,7 +546,7 @@ follows `type`:
 | `type` | `details` |
 |---|---|
 | `transfer` | `asset`, `amount`, `recipient`, `confidential`, `reference?`, `usd_value?` |
-| `withdraw` | as a transfer, plus `chain`, `memo?` |
+| `withdraw` | as a transfer, plus `chain`, `memo?`, `amount_out?` |
 | `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?`, `usd_value?` |
 | `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?`, `usd_value?` |
 | `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposit_address`, `deposited_amount?`, `amount_out?`, `deposit_tx_hash?` |
@@ -591,7 +591,7 @@ try {
 } catch (error) {
   if (error instanceof ReceiptNotCoveredError || error instanceof LogUnavailableError) {
     // Retry: the trusted head is older than the payment (fetch a newer one), or the log did not
-    // answer. Neither says anything about the receipt.
+    // answer or did not serve a tile yet. Neither says anything about the receipt.
   } else if (error instanceof NoteError || error instanceof ProofError) {
     // Reject: the receipt does not prove this payment.
   } else throw error; // TypeError: `expect` is incomplete
@@ -601,8 +601,14 @@ try {
 `expect` must match the payment's request exactly: `recipient`, `asset` as requested (a NEAR
 withdrawal to chain `near` delivers native NEAR whatever was requested), atomic `amount` and
 `reference`, all non-empty strings; `confidential` when given; `chain` for a withdrawal (without
-`chain` only a transfer matches); and `memo` (without `memo`, a withdrawal with one never
-matches). Issue a unique `reference` per order: the API does not check uniqueness, and the same
+`chain` only a transfer matches); and `memo`, exactly (without `memo`, a withdrawal with one never
+matches; an explicit empty memo matches only `memo: ""`). `amount` is what the payer sent: a
+transfer delivers it whole, but a withdrawal delivers it less the network or bridge fee, in the
+destination chain's units, so a withdrawal receipt proves the debit, not what arrived. A payee
+owed an exact amount by withdrawal confirms the arrival from the result's `amountOut`, when the
+provider reported it, or on the destination chain by the returned hashes (`intentHash`,
+`transferIntentHash`, `txHash`, `destinationTxHash`, `settlementTxHash`, `receiptHash`). A page
+of `listReceipts` may hold fewer than `limit` items while `next_cursor` is set. Issue a unique `reference` per order: the API does not check uniqueness, and the same
 receipt can be shown twice. A verified receipt proves the API logged the payment as settled on
 the provider's report, with the settlement hash the API requires; it does not prove delivery
 itself, nor on-chain finality for a confidential route. A receipt discloses the whole settled

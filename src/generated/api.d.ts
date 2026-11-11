@@ -109,7 +109,7 @@ export interface paths {
         };
         /**
          * Get the receipt of a completed transfer, withdrawal, swap, limit order or deposit
-         * @description Returns the completion event (`execute.completed`) of a transfer, withdrawal, swap, limit order or deposit as a receipt anyone can verify with verifyReceipt (or, for a transfer or withdrawal a payee expects, verifyPaymentReceipt) against a trusted checkpoint and the log's public tiles, plus `details`, a convenience view of its terms read from the same evidence. A limit order is completed when funded and placed (not filled), and its receipt proves only that; a deposit's proves the funds arrived and were credited, not who sent them. `receipt` is null while the event is `PENDING` (the latest checkpoint does not cover it yet; read again later) and for `UNLOGGED` (recorded before the log started), which never becomes `PROVEN`. An operation of another type, one that has not completed, or one whose completion event is past retention is refused with 409 receipt_not_available; other executions are proved with getOperationProof.
+         * @description Returns the completion event (`execute.completed`) of a transfer, withdrawal, swap, limit order or deposit as a receipt anyone can verify with verifyReceipt (or, for a transfer or withdrawal a payee expects, verifyPaymentReceipt) against a trusted checkpoint and the log's public tiles, plus `details`, a convenience view of its terms read from the same evidence. A limit order is completed when funded and placed (not filled), and its receipt proves only that; a deposit's proves the funds arrived and were credited, not who sent them. `receipt` is null while the event is `PENDING` (the latest checkpoint does not cover it yet; read again later) and for `UNLOGGED` (recorded before the log started), which never becomes `PROVEN`. It is read from the completion event alone, so it stays readable for the audit retention period whatever became of the operation's history. An operation of another type or one that has not completed is refused with 409 receipt_not_available; other executions are proved with getOperationProof.
          */
         get: operations["getReceipt"];
         put?: never;
@@ -129,7 +129,7 @@ export interface paths {
         };
         /**
          * List an agent's completed executions with their receipts, newest first
-         * @description Every completed transfer, withdrawal, swap, limit order (completed: funded and placed, not filled) and deposit of the agent whose completion event is retained, newest first, in the shape getReceipt returns; `type` keeps one type. Page with `cursor` and `limit` as in getHistory.
+         * @description Every completed transfer, withdrawal, swap, limit order (completed: funded and placed, not filled) and deposit of the agent whose completion event is retained, newest first, in the shape getReceipt returns; `type` keeps one type. Page with `cursor` and `limit`: a page may hold fewer than `limit` items while `next_cursor` is set, so read on until it is null.
          */
         get: operations["listReceipts"];
         put?: never;
@@ -2501,6 +2501,7 @@ export interface operations {
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
+                            transfer_intent_hash?: string;
                             tx_hash?: string;
                             destination_tx_hash?: string;
                             settlement_tx_hash?: string;
@@ -2533,10 +2534,12 @@ export interface operations {
                             usd_value?: string;
                             chain: string;
                             memo?: string;
+                            amount_out?: string;
                             settled_at: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
+                            transfer_intent_hash?: string;
                             tx_hash?: string;
                             destination_tx_hash?: string;
                             settlement_tx_hash?: string;
@@ -2572,6 +2575,7 @@ export interface operations {
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
+                            transfer_intent_hash?: string;
                             tx_hash?: string;
                             destination_tx_hash?: string;
                             settlement_tx_hash?: string;
@@ -2612,6 +2616,7 @@ export interface operations {
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
+                            transfer_intent_hash?: string;
                             tx_hash?: string;
                             destination_tx_hash?: string;
                             settlement_tx_hash?: string;
@@ -2648,6 +2653,7 @@ export interface operations {
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
+                            transfer_intent_hash?: string;
                             tx_hash?: string;
                             destination_tx_hash?: string;
                             settlement_tx_hash?: string;
@@ -2781,6 +2787,7 @@ export interface operations {
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
+                                transfer_intent_hash?: string;
                                 tx_hash?: string;
                                 destination_tx_hash?: string;
                                 settlement_tx_hash?: string;
@@ -2813,10 +2820,12 @@ export interface operations {
                                 usd_value?: string;
                                 chain: string;
                                 memo?: string;
+                                amount_out?: string;
                                 settled_at: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
+                                transfer_intent_hash?: string;
                                 tx_hash?: string;
                                 destination_tx_hash?: string;
                                 settlement_tx_hash?: string;
@@ -2852,6 +2861,7 @@ export interface operations {
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
+                                transfer_intent_hash?: string;
                                 tx_hash?: string;
                                 destination_tx_hash?: string;
                                 settlement_tx_hash?: string;
@@ -2892,6 +2902,7 @@ export interface operations {
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
+                                transfer_intent_hash?: string;
                                 tx_hash?: string;
                                 destination_tx_hash?: string;
                                 settlement_tx_hash?: string;
@@ -2928,6 +2939,7 @@ export interface operations {
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
+                                transfer_intent_hash?: string;
                                 tx_hash?: string;
                                 destination_tx_hash?: string;
                                 settlement_tx_hash?: string;
