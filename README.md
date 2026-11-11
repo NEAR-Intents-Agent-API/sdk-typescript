@@ -553,7 +553,8 @@ follows `type`:
 
 `usd_value` is the API's valuation of the requested amount at dispatch, from its cached price, in
 USD with six decimals, rounded up to the next millionth of a dollar (so dust reads `0.000001`); not
-a quote or a settlement price; absent when no price was available. A
+a quote or a settlement price. An account with no USD cap never waits on a price, so it is absent
+when the API held no usable price in memory. A
 limit order's receipt proves the order was funded and placed under `order_id`, not that it filled;
 a deposit's proves funds arrived and were credited to the account, not who sent them. Shield,
 unshield and anything unsettled answer 409 `receipt_not_available`; prove them with
@@ -600,7 +601,9 @@ try {
 
 `expect` must match the payment's request exactly: `recipient`, `asset` as requested (a NEAR
 withdrawal to chain `near` delivers native NEAR whatever was requested), atomic `amount` and
-`reference`, all non-empty strings; `confidential` when given; `chain` for a withdrawal (without
+`reference`, all non-empty strings; `confidential: true` to accept a confidential payment
+(without it only a public one matches, because a confidential payment completes on the provider's
+word with nothing to check on chain); `chain` for a withdrawal (without
 `chain` only a transfer matches); and `memo`, exactly (without `memo`, a withdrawal with one never
 matches; an explicit empty memo matches only `memo: ""`). `amount` is what the payer sent: a
 transfer delivers it whole, but a withdrawal delivers it less the network or bridge fee, in the
@@ -613,7 +616,8 @@ receipt can be shown twice. A verified receipt proves the API logged the payment
 the provider's report, with the settlement hash the API requires; it does not prove delivery
 itself, nor on-chain finality for a confidential route. A receipt discloses the whole settled
 event, including stable identifiers of the agent, its custody account and the dispatching key,
-so receipts given out are linkable to each other. Read receipts soon: the API deletes an event's
+so receipts given out are linkable to each other, and a confidential payment's receipt links that
+payment to the agent's public account for whoever holds it. Read receipts soon: the API deletes an event's
 evidence after 90 days, and a receipt read before then keeps verifying. Native signing routes
 give no receipt. See
 [Receipts](https://github.com/NEAR-Intents-Agent-API/api/blob/main/docs/transparency.md#receipts).
