@@ -144,8 +144,8 @@ export type ExpectedPayment = {
   readonly amount: string;
   readonly reference: string;
   /**
-   * Omit to accept a public payment only. A confidential payment completes on the provider's word
-   * with nothing to check on chain, so accepting one is asked for with `true`.
+   * Omit to accept a confidential payment only, the account's default. A payment from the legacy
+   * public balance (a withdrawal sent with `confidential: false`) is accepted only with `false`.
    */
   readonly confidential?: boolean;
   /** A withdrawal's chain. Omit for a transfer: a withdrawal never satisfies an expectation without one. */
@@ -370,7 +370,7 @@ export async function verifyPaymentReceipt(
   for (const field of ["recipient", "asset", "amount", "reference", "chain", "memo"] as const)
     if (actual[field] !== expect[field])
       throw new NoteError(`the payment's ${field} is not the expected one`);
-  if (terms.confidential !== (expect.confidential ?? false))
+  if (terms.confidential !== (expect.confidential ?? true))
     throw new NoteError("the payment's confidential is not the expected one");
   return {
     correlationId: verified.correlationId,
