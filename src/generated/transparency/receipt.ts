@@ -3,6 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { auditLeaf, decodeAuditOpening } from "./audit.js";
 import { type Checkpoint, validateCheckpoint } from "./checkpoint.js";
+import { atomic, parseJson, present, record } from "./fields.js";
 import { parseUint64 } from "./framing.js";
 import { HASH_SIZE } from "./hash.js";
 import { NoteError } from "./note.js";
@@ -20,26 +21,24 @@ import {
 import { verifyInclusion } from "./verify.js";
 
 /**
- * Proof that one execution settled: the operation's settled audit event, as its canonical opening
- * and leaf index, and the evidence the opening commits to. It carries no inclusion path or
- * checkpoint; `verifyReceipt` rebuilds inclusion from the log's tiles against a checkpoint the
- * verifier trusts.
+ * Proof that one execution settled, for whoever the payer hands it to. It is its own leaf of the
+ * log, written with the settlement and committing to nothing but the terms below, the execution's
+ * id and the time: it names no tenant, agent, account, key or grant, so receipts cannot be linked
+ * to each other or to the payer. It carries no inclusion path or checkpoint; `verifyReceipt`
+ * rebuilds inclusion from the log's tiles against a checkpoint the verifier trusts.
  */
 export type Receipt = {
   readonly version: 1;
   readonly origin: string;
-  readonly agent_id: string;
-  readonly correlation_id: string;
-  readonly action: string;
-  readonly created_at: string;
   /** Decimal. */
   readonly leaf_index: string;
-  /** The event's audit opening as text: the prefix line, then its canonical JSON. */
+  /** The leaf's opening as text: the prefix line, then its canonical JSON. */
   readonly opening: string;
-  readonly evidence: string;
+  /** The settled terms the opening commits to, as canonical JSON. */
+  readonly terms: string;
 };
 
-const hashFields = [
+export const hashFields = [
   "intent_hash",
   "transfer_intent_hash",
   "tx_hash",
@@ -51,64 +50,57 @@ const hashFields = [
 /** The execution types that settle with a receipt, by the API's public type names. */
 export type ReceiptType = "transfer" | "withdraw" | "swap" | "limit_order" | "deposit";
 
-/** The settlement identifiers the evidence reported, in the API's public field names. */
+/** The settlement identifiers the provider reported, in the API's public field names. */
 export type SettlementHashes = { readonly [K in (typeof hashFields)[number]]?: string };
 
-/** The API's USD valuation of the requested amount at dispatch; never a quote or a settlement. */
-type Valued = { readonly usd_value?: string };
+export type TransferTerms = SettlementHashes & {
+  readonly type: "transfer";
+  readonly asset: string;
+  readonly amount: string;
+  readonly recipient: string;
+  readonly confidential: boolean;
+  readonly reference?: string;
+};
 
-export type TransferTerms = SettlementHashes &
-  Valued & {
-    readonly type: "transfer";
-    readonly asset: string;
-    readonly amount: string;
-    readonly recipient: string;
-    readonly confidential: boolean;
-    readonly reference?: string;
-  };
+export type WithdrawTerms = SettlementHashes & {
+  readonly type: "withdraw";
+  readonly asset: string;
+  readonly amount: string;
+  readonly recipient: string;
+  readonly confidential: boolean;
+  readonly chain: string;
+  /** As requested; an explicit empty memo stays `""`. */
+  readonly memo?: string;
+  readonly reference?: string;
+  /** What the provider reported delivering, in the destination's units, when it reported it. */
+  readonly amount_out?: string;
+};
 
-export type WithdrawTerms = SettlementHashes &
-  Valued & {
-    readonly type: "withdraw";
-    readonly asset: string;
-    readonly amount: string;
-    readonly recipient: string;
-    readonly confidential: boolean;
-    readonly chain: string;
-    /** As requested; an explicit empty memo stays `""`. */
-    readonly memo?: string;
-    readonly reference?: string;
-    /** What the provider reported delivering, in the destination's units, when it reported it. */
-    readonly amount_out?: string;
-  };
-
-export type SwapTerms = SettlementHashes &
-  Valued & {
-    readonly type: "swap";
-    readonly origin_asset: string;
-    readonly destination_asset: string;
-    readonly amount: string;
-    readonly min_amount_out?: string;
-    readonly confidential: boolean;
-    /** What the swap delivered, atomic units of `destination_asset`, when the evidence reports it. */
-    readonly amount_out?: string;
-  };
+export type SwapTerms = SettlementHashes & {
+  readonly type: "swap";
+  readonly origin_asset: string;
+  readonly destination_asset: string;
+  readonly amount: string;
+  readonly min_amount_out?: string;
+  readonly confidential: boolean;
+  /** What the swap delivered, atomic units of `destination_asset`, when the provider reported it. */
+  readonly amount_out?: string;
+};
 
 /** A placed order: funded and resting under `order_id`. Its fills are read from the order itself. */
-export type LimitOrderTerms = SettlementHashes &
-  Valued & {
-    readonly type: "limit_order";
-    readonly origin_asset: string;
-    readonly destination_asset: string;
-    readonly amount: string;
-    readonly side: "sell" | "buy";
-    readonly price: string;
-    readonly quantity: string;
-    readonly deadline?: string;
-    readonly confidential: boolean;
-    readonly order_id: string;
-    readonly amount_out?: string;
-  };
+export type LimitOrderTerms = SettlementHashes & {
+  readonly type: "limit_order";
+  readonly origin_asset: string;
+  readonly destination_asset: string;
+  readonly amount: string;
+  readonly side: "sell" | "buy";
+  readonly price: string;
+  readonly quantity: string;
+  readonly deadline?: string;
+  readonly confidential: boolean;
+  readonly order_id: string;
+  readonly amount_out?: string;
+};
 
 /** Funds that arrived at the deposit address and were credited; it never names who sent them. */
 export type DepositTerms = SettlementHashes & {
@@ -123,7 +115,7 @@ export type DepositTerms = SettlementHashes & {
   readonly deposit_tx_hash?: string;
 };
 
-/** What a settled event's evidence records, in the API's public field names. */
+/** What a receipt commits to, in the API's public field names. */
 export type ReceiptTerms =
   | TransferTerms
   | WithdrawTerms
@@ -161,28 +153,22 @@ export type ExpectedPayment = {
   readonly memo?: string;
 };
 
-/** What the opening and the evidence commit to; read these, never the API's unverified view. */
+/** What the receipt's leaf commits to; nothing here comes from the API unverified. */
 export type VerifiedReceipt = {
-  readonly agentId: string;
+  /** The execution's id: accept each once. It is random per execution and names no payer. */
   readonly correlationId: string;
-  /** When the API recorded the settlement, as the opening commits it. */
+  /** When the API recorded the settlement. */
   readonly settledAt: string;
-  /** The grant the settlement was recorded under, when its event names one. */
-  readonly grantId?: string;
-  /** Decimal; the policy epoch the settlement was recorded under, when its event names one. */
-  readonly policyEpoch?: string;
   readonly terms: ReceiptTerms;
   readonly leafIndex: bigint;
-  /** The settled event's evidence, as committed by the opening. */
-  readonly evidence: Readonly<Record<string, unknown>>;
 };
 
-/** Every fact the opening or the evidence commits to; read these, never the API's unverified view. */
+/** A verified transfer or withdrawal; nothing here comes from the API unverified. */
 export type VerifiedPayment = {
-  readonly agentId: string;
+  /** The execution's id: accept each once. It is random per execution and names no payer. */
   readonly correlationId: string;
   readonly type: PaymentTerms["type"];
-  /** When the API recorded the settlement, as the opening commits it. */
+  /** When the API recorded the settlement. */
   readonly settledAt: string;
   readonly recipient: string;
   readonly asset: string;
@@ -196,12 +182,6 @@ export type VerifiedPayment = {
    * reported it. `amount` is the debit; confirm what arrived here or on the destination chain.
    */
   readonly amountOut?: string;
-  /** The API's USD valuation of the amount at dispatch, six decimals; absent when it had no price. */
-  readonly usdValue?: string;
-  /** The grant the settlement was recorded under, when its event names one. */
-  readonly grantId?: string;
-  /** Decimal; the policy epoch the settlement was recorded under, when its event names one. */
-  readonly policyEpoch?: string;
   readonly intentHash?: string;
   readonly transferIntentHash?: string;
   readonly txHash?: string;
@@ -209,12 +189,10 @@ export type VerifiedPayment = {
   readonly settlementTxHash?: string;
   readonly receiptHash?: string;
   readonly leafIndex: bigint;
-  /** The settled event's evidence, as committed by the opening. */
-  readonly evidence: Readonly<Record<string, unknown>>;
 };
 
 /**
- * The trusted checkpoint does not cover the receipt's event yet. The receipt may well be valid:
+ * The trusted checkpoint does not cover the receipt's leaf yet. The receipt may well be valid:
  * fetch a newer trusted checkpoint and verify again.
  */
 export class ReceiptNotCoveredError extends Error {
@@ -238,238 +216,123 @@ export class LogUnavailableError extends Error {
   }
 }
 
-/** The one audit event that records a settled execution. */
-export const SETTLED_EVENT = "execute.completed";
-/** The API's execution actions that settle with a receipt, and the public type each reads as. */
-const RECEIPT_TYPES: ReadonlyMap<string, ReceiptType> = new Map<string, ReceiptType>([
-  ["intents_transfer", "transfer"],
-  ["confidential_transfer", "transfer"],
-  ["withdraw", "withdraw"],
-  ["swap", "swap"],
-  ["limit_order", "limit_order"],
-  ["cross_chain_deposit", "deposit"],
-]);
-const usdValuePattern = /^[0-9]{1,24}\.[0-9]{6}$/;
-const atomicPattern = /^[0-9]{1,78}$/;
+/** The leaf the API writes beside a settled execution's own event: its receipt. */
+export const RECEIPT_EVENT = "execute.receipt";
+/** Every field of a receipt leaf's opening, besides its salt. */
+const openingFields = ["action", "createdAt", "evidenceHash", "resourceId"];
 const FULL_TILE = TILE_WIDTH * HASH_SIZE;
-/**
- * The settlement evidence the API requires before a provider `success` completes an execution,
- * mirrored from `successEvidenceFor` in packages/outlayer/src/execution/outcome.ts and, for a
- * deposit, from `depositReceiptKeys` in apps/server/src/shared/deposit-addresses.ts; a unit test
- * fails when they drift.
- */
-const withdrawEvidence = ["tx_hash", "settlement_tx_hash", "destination_tx_hash", "receipt_hash"];
-const publicSettlement = new Map<string, readonly string[]>([
-  ["swap", ["settlement_tx_hash", "destination_tx_hash", "receipt_hash"]],
-  ["intents_transfer", ["intent_hash", "transfer_intent_hash", "settlement_tx_hash"]],
-  ["confidential_transfer", ["intent_hash", "settlement_tx_hash"]],
-  // A placed order rests, it has not settled: its order id is the proof it is funded.
-  ["limit_order", ["order_id"]],
-  ["cross_chain_deposit", ["settlement_tx_hash", "destination_tx_hash", "receipt_hash"]],
-]);
-function settlementRequired(action: string, result: Record<string, unknown>): readonly string[] {
-  // A same-chain NEAR withdrawal is an intent `intents.near` executes; its hash identifies it.
-  if (action === "withdraw")
-    return result.chain === "near" ? [...withdrawEvidence, "intent_hash"] : withdrawEvidence;
-  // A confidential route settles on FAR, where the intent hash is the only settlement id.
-  if (action !== "limit_order" && result.confidential === true) return ["intent_hash"];
-  return publicSettlement.get(action) ?? [];
-}
 
-/** OutLayer's `delivered` names native NEAR `native_near` and a NEP-141 token by its asset id. */
-function expectedDelivery(requested: unknown) {
-  if (requested === "near") return "native_near";
-  return typeof requested === "string" && requested.startsWith("nep141:") ? requested : null;
-}
+/** Each type's own text fields: the ones it always has, then the ones it may have. */
+const termFields: Record<ReceiptType, readonly [readonly string[], readonly string[]]> = {
+  transfer: [["asset", "amount", "recipient"], ["reference"]],
+  withdraw: [
+    ["asset", "amount", "recipient", "chain"],
+    ["reference", "amount_out"],
+  ],
+  swap: [
+    ["origin_asset", "destination_asset", "amount"],
+    ["min_amount_out", "amount_out"],
+  ],
+  limit_order: [
+    ["origin_asset", "destination_asset", "amount", "side", "price", "quantity", "order_id"],
+    ["deadline", "amount_out"],
+  ],
+  deposit: [
+    ["origin_asset", "deposit_address"],
+    ["destination_asset", "amount", "deposited_amount", "amount_out", "deposit_tx_hash"],
+  ],
+};
+
+const chainSettlement = ["tx_hash", "settlement_tx_hash", "destination_tx_hash", "receipt_hash"];
+const routedSettlement = ["settlement_tx_hash", "destination_tx_hash", "receipt_hash"];
 
 /**
- * Why the API refuses a provider `success`, mirrored from `refusedSuccess` and
- * `meetsRequestedMinimum` in packages/outlayer/src/execution/outcome.ts: a swap output below its
- * minimum, whether the minimum is read from the top level or from the request, or a public NEAR
- * withdrawal that delivered another asset than it asked for.
+ * The settlement identifiers one of which a receipt must name, never fewer than the API's own
+ * completion rule asks of the execution: a confidential route settles by its intent hash alone.
  */
-function refusedSuccess(
-  action: string,
-  result: Record<string, unknown>,
-  evidence: Record<string, unknown>,
-) {
-  const amountOut = evidence.amount_out;
-  const minimum =
-    given(result.requested_min_amount_out) ?? given(optionalRecord(result.request).min_amount_out);
-  if (
-    action === "swap" &&
-    minimum !== undefined &&
-    !(atomic(minimum) && atomic(amountOut) && BigInt(amountOut) >= BigInt(minimum))
-  )
-    throw new NoteError("the swap's amount_out does not meet its minimum");
-  const expected =
-    action === "withdraw" && result.chain === "near" && !result.confidential
-      ? expectedDelivery(result.requested_asset)
-      : null;
-  const delivered = evidence.delivered;
-  if (expected && typeof delivered === "string" && delivered !== "" && delivered !== expected)
-    throw new NoteError("the withdrawal delivered another asset than it requested");
-}
-
-/** Whether the evidence shows the success the API's completion rule requires of `action`. */
-function settled(
-  action: string,
-  result: Record<string, unknown>,
-  evidence: Record<string, unknown>,
-) {
-  // As the API reads it: `provider_status`, and `status` only when that is absent.
-  if ((given(result.provider_status) ?? given(result.status)) !== "success")
-    throw new NoteError("the evidence does not show success");
-  // A settlement the provider still calls pending is progress, never completion.
-  if (
-    typeof result.settlement_status === "string" &&
-    /pending|processing|submitted/i.test(result.settlement_status)
-  )
-    throw new NoteError("the evidence names its settlement as pending");
-  refusedSuccess(action, result, evidence);
-  // A public swap credits Intents balances: its output and intent hash settle it.
-  const amountOut = evidence.amount_out;
-  if (
-    action === "swap" &&
-    atomic(amountOut) &&
-    /[1-9]/.test(amountOut) &&
-    nonEmpty(evidence.intent_hash)
-  )
-    return;
-  if (!settlementRequired(action, result).some((key) => nonEmpty(evidence[key])))
-    throw new NoteError("the evidence names no settlement");
-}
-
-/** The asset a withdrawal asks the provider to deliver: NEAR to chain `near` always arrives native. */
-function deliveredAsset(terms: Record<string, unknown>) {
-  if (terms.chain !== "near" || (terms.asset !== "near" && terms.asset !== "nep141:wrap.near"))
-    return terms.asset;
-  return terms.confidential ? "nep141:wrap.near" : "near";
-}
-
-/**
- * The completion rule reads its inputs from the top level, the terms from the request: where the
- * evidence records one twice, both must agree, or the terms returned are not the ones it judged.
- */
-function sameTerms(result: Record<string, unknown>, terms: Record<string, unknown>) {
-  const twice: [string, unknown, unknown][] = [
-    ["confidential", result.confidential, terms.confidential],
-    ["chain", result.chain, terms.chain],
-    ["min_amount_out", result.requested_min_amount_out, terms.min_amount_out],
-    [
-      "asset",
-      result.requested_asset,
-      terms.type === "withdraw" ? deliveredAsset(terms) : undefined,
-    ],
-  ];
-  for (const [field, recorded, read] of twice)
-    if (given(recorded) !== undefined && read !== undefined && given(recorded) !== read)
-      throw new NoteError(`the evidence's ${field} disagrees with its request`);
-}
-
-/**
- * The successful execution a settled event's evidence records: the request as admitted, what the
- * provider reported for it and whichever settlement hashes it named. Refuses any other evidence.
- */
-export function receiptTerms(evidence: string): ReceiptTerms {
-  return termsOfResult(record(parseEvidence(evidence), "evidence"));
-}
-
-function termsOfResult(result: Record<string, unknown>): ReceiptTerms {
-  const action = typeof result.action === "string" ? result.action : "";
-  const type = RECEIPT_TYPES.get(action);
-  if (!type) throw new NoteError("the evidence is not of an execution that has receipts");
-  // Hashes may sit at the top level or in a nested `evidence` object, which wins, as the API reads them.
-  const reported = { ...result, ...optionalRecord(result.evidence) };
-  settled(action, result, reported);
-  const request = record(result.request, "evidence request");
-  const hashes: Record<string, string> = {};
-  for (const field of hashFields) {
-    const hash = optionalText(reported[field], field);
-    if (hash) hashes[field] = hash;
-  }
-  const terms = { type, ...termsOf(type, request, reported), ...hashes };
-  sameTerms(result, terms);
-  if (type === "deposit") return terms as ReceiptTerms;
-  const usd = optionalText(result.usd_value, "usd_value");
-  if (usd !== undefined && !usdValuePattern.test(usd))
-    throw new NoteError("the evidence's usd_value is malformed");
-  return (usd === undefined ? terms : { ...terms, usd_value: usd }) as ReceiptTerms;
-}
-
-/** The type's own fields, each read from the admitted request or the provider's report. */
-function termsOf(
-  type: ReceiptType,
-  request: Record<string, unknown>,
-  reported: Record<string, unknown>,
-): Record<string, unknown> {
-  const chain = optionalText(request.chain, "chain");
-  if ((type === "withdraw") !== (chain !== undefined))
-    throw new NoteError(`the ${type}'s chain does not fit its type`);
-  const confidential = given(request.confidential) ?? false;
-  if (typeof confidential !== "boolean")
-    throw new NoteError(`the ${type}'s confidential is not a boolean`);
-  const fields = (required: readonly string[], optional: readonly string[], from = request) => ({
-    ...Object.fromEntries(required.map((field) => [field, text(from[field], field)])),
-    ...present(
-      Object.fromEntries(optional.map((field) => [field, optionalText(from[field], field)])),
-    ),
-  });
-  switch (type) {
+function settlementOf(terms: ReceiptTerms): readonly string[] {
+  switch (terms.type) {
+    // A same-chain NEAR withdrawal is an intent `intents.near` executes; its hash identifies it.
+    case "withdraw":
+      return terms.chain === "near" ? [...chainSettlement, "intent_hash"] : chainSettlement;
+    // A placed order rests, it has not settled: its order id is the proof it is funded.
+    case "limit_order":
+      return ["order_id"];
     case "transfer":
-      return { ...fields(["asset", "amount", "recipient"], ["reference"]), confidential };
-    case "withdraw": {
-      // The request commits an explicit empty memo, so it is kept apart from no memo.
-      const memo = given(request.memo);
-      return {
-        ...fields(["asset", "amount", "recipient", "chain"], ["reference"]),
-        ...(memo === undefined ? {} : { memo: text(memo, "memo") }),
-        confidential,
-        ...fields([], ["amount_out"], reported),
-      };
-    }
+      return terms.confidential
+        ? ["intent_hash"]
+        : ["intent_hash", "transfer_intent_hash", "settlement_tx_hash"];
     case "swap":
-      return {
-        ...fields(["origin_asset", "destination_asset", "amount"], ["min_amount_out"]),
-        confidential,
-        ...fields([], ["amount_out"], reported),
-      };
-    case "limit_order": {
-      const side = text(request.side, "side");
-      if (side !== "sell" && side !== "buy")
-        throw new NoteError("the limit_order's side is unknown");
-      return {
-        ...fields(
-          ["origin_asset", "destination_asset", "amount", "price", "quantity"],
-          ["deadline"],
-        ),
-        side,
-        confidential,
-        ...fields(["order_id"], ["amount_out"], reported),
-      };
-    }
     case "deposit":
-      return {
-        ...fields(["origin_asset"], ["destination_asset", "amount"]),
-        confidential,
-        ...fields(
-          ["deposit_address"],
-          ["deposited_amount", "amount_out", "deposit_tx_hash"],
-          reported,
-        ),
-      };
+      return terms.confidential ? ["intent_hash"] : routedSettlement;
   }
+}
+
+function settled(terms: ReceiptTerms) {
+  const named = terms as Readonly<Record<string, unknown>>;
+  if (terms.type === "swap") {
+    const { amount_out: out, min_amount_out: minimum } = terms;
+    if (
+      minimum !== undefined &&
+      !(atomic(minimum) && atomic(out) && BigInt(out) >= BigInt(minimum))
+    )
+      throw new NoteError("the swap's amount_out does not meet its minimum");
+    // A public swap credits Intents balances: its output and intent hash settle it.
+    if (!terms.confidential && atomic(out) && /[1-9]/.test(out) && terms.intent_hash) return;
+  }
+  if (!settlementOf(terms).some((field) => named[field] !== undefined))
+    throw new NoteError("the receipt names no settlement");
+}
+
+/** Every other field is one of the type's own, as non-empty text, and none it must have is missing. */
+function namedFields(
+  type: string,
+  fields: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[],
+) {
+  const allowed = new Set([...required, ...optional, ...hashFields]);
+  for (const [field, value] of Object.entries(fields))
+    if (!allowed.has(field) || typeof value !== "string" || value === "")
+      throw new NoteError(`the ${type}'s ${field} is not allowed`);
+  for (const field of required)
+    if (fields[field] === undefined) throw new NoteError(`the ${type} names no ${field}`);
+  if (type === "limit_order" && fields.side !== "sell" && fields.side !== "buy")
+    throw new NoteError("the limit_order's side is unknown");
+}
+
+/**
+ * Reads the terms a receipt commits to, refusing anything else: an unknown type or field, a
+ * missing or empty one, or terms that name no settlement of their type.
+ */
+export function parseReceiptTerms(terms: string): ReceiptTerms {
+  const { type, confidential, memo, ...rest } = record(parseJson(terms), "receipt terms");
+  const spec = typeof type === "string" && Object.hasOwn(termFields, type) ? type : undefined;
+  if (!spec) throw new NoteError("the receipt is of no known type");
+  const [required, optional] = termFields[spec as ReceiptType];
+  if (typeof confidential !== "boolean")
+    throw new NoteError(`the ${spec}'s confidential is not a boolean`);
+  if (memo !== undefined && (spec !== "withdraw" || typeof memo !== "string"))
+    throw new NoteError(`the ${spec}'s memo is not allowed`);
+  namedFields(spec, rest, required, optional);
+  const read = {
+    type: spec,
+    ...rest,
+    confidential,
+    ...(memo === undefined ? {} : { memo }),
+  } as ReceiptTerms;
+  settled(read);
+  return read;
 }
 
 /**
  * Checks a receipt without trusting its source or the API: its opening is a leaf of the tree
- * `trusted` commits to, rebuilt from the log's own tiles; the opening is the operation's settled
- * event; and the evidence it commits to shows the success the API's completion rule requires,
- * whose terms it returns typed. `trusted` must come from a trusted witness or independently
- * retained state, never from the receipt's source. A receipt newer than `trusted` throws
- * `ReceiptNotCoveredError`, and a log that does not answer, or does not serve a tile its tree must
- * contain, throws `LogUnavailableError`: verify those again later. A `NoteError` or `ProofError` means the receipt does
- * not prove a settled execution.
+ * `trusted` commits to, rebuilt from the log's own tiles; the opening is a receipt leaf; and the
+ * terms it commits to are a settled execution's, which it returns typed. `trusted` must come from
+ * a trusted witness or independently retained state, never from the receipt's source. A receipt
+ * newer than `trusted` throws `ReceiptNotCoveredError`, and a log that does not answer, or does
+ * not serve a tile its tree must contain, throws `LogUnavailableError`: verify those again later.
+ * A `NoteError` or `ProofError` means the receipt does not prove a settled execution.
  */
 export async function verifyReceipt(
   receipt: Receipt,
@@ -482,7 +345,7 @@ export async function verifyReceipt(
   if (trusted.origin !== origin)
     throw new NoteError("a trusted checkpoint for this origin is required");
   validateCheckpoint(trusted);
-  const { opening, fields } = settledOpening(receipt);
+  const { opening, fields } = receiptOpening(receipt);
   const index = parseUint64(receipt.leaf_index, "receipt leaf index");
   if (index >= trusted.size) throw new ReceiptNotCoveredError(index, trusted.size);
   const nodes = inclusionProofNodes(index, trusted.size);
@@ -498,15 +361,11 @@ export async function verifyReceipt(
     proofFromTiles(nodes, new Map(rows)),
     trusted.root,
   );
-  const evidence = record(parseEvidence(receipt.evidence), "evidence");
   return {
-    agentId: receipt.agent_id,
-    correlationId: receipt.correlation_id,
-    settledAt: receipt.created_at,
-    ...present({ grantId: fields.grantId, policyEpoch: fields.policyEpoch }),
-    terms: termsOfResult(evidence),
+    correlationId: fields.resourceId,
+    settledAt: fields.createdAt,
+    terms: parseReceiptTerms(receipt.terms),
     leafIndex: index,
-    evidence,
   };
 }
 
@@ -543,7 +402,6 @@ export async function verifyPaymentReceipt(
   if (terms.confidential !== (expect.confidential ?? false))
     throw new NoteError("the payment's confidential is not the expected one");
   return {
-    agentId: verified.agentId,
     correlationId: verified.correlationId,
     type: terms.type,
     settledAt: verified.settledAt,
@@ -556,9 +414,6 @@ export async function verifyPaymentReceipt(
       chain,
       memo,
       amountOut: terms.type === "withdraw" ? terms.amount_out : undefined,
-      usdValue: terms.usd_value,
-      grantId: verified.grantId,
-      policyEpoch: verified.policyEpoch,
       intentHash: terms.intent_hash,
       transferIntentHash: terms.transfer_intent_hash,
       txHash: terms.tx_hash,
@@ -567,7 +422,6 @@ export async function verifyPaymentReceipt(
       receiptHash: terms.receipt_hash,
     }),
     leafIndex: verified.leafIndex,
-    evidence: verified.evidence,
   };
 }
 
@@ -586,22 +440,20 @@ function checkExpected(expect: ExpectedPayment) {
     throw new TypeError("expect.confidential must be a boolean when given");
 }
 
-/** The receipt's opening, when it is the settled event the receipt names and commits its evidence. */
-function settledOpening(receipt: Receipt) {
+/**
+ * The receipt's opening, when it is a receipt leaf committing these terms and nothing more: an
+ * opening with any other field is another kind of leaf, whatever it calls itself.
+ */
+function receiptOpening(receipt: Receipt) {
   const opening = utf8ToBytes(receipt.opening);
   const { fields } = decodeAuditOpening(opening);
-  if (
-    fields.agentId !== receipt.agent_id ||
-    fields.resourceId !== receipt.correlation_id ||
-    fields.action !== receipt.action ||
-    fields.createdAt !== receipt.created_at
-  )
-    throw new NoteError("the opening does not describe this receipt");
-  if (receipt.action !== SETTLED_EVENT)
-    throw new NoteError(`receipt is for ${receipt.action}, not the settled event ${SETTLED_EVENT}`);
-  if (fields.evidenceHash !== bytesToHex(sha256(utf8ToBytes(receipt.evidence))))
-    throw new NoteError("the evidence is not what the opening committed");
-  return { opening, fields };
+  const { action, createdAt, evidenceHash, resourceId } = fields;
+  if (action !== RECEIPT_EVENT || Object.keys(fields).sort().join() !== openingFields.join())
+    throw new NoteError("the opening is not a receipt's");
+  if (!resourceId || !createdAt) throw new NoteError("the opening names no execution or time");
+  if (evidenceHash !== bytesToHex(sha256(utf8ToBytes(receipt.terms))))
+    throw new NoteError("the terms are not what the opening committed");
+  return { opening, fields: { resourceId, createdAt } };
 }
 
 /**
@@ -624,61 +476,6 @@ async function provenTile(readTile: TileReader, tile: TileId, size: bigint): Pro
     );
   if (full.length !== FULL_TILE) throw new NoteError(`tile ${path} has the wrong size`);
   return full.subarray(0, width * HASH_SIZE);
-}
-
-function parseEvidence(evidence: string): unknown {
-  try {
-    return JSON.parse(evidence);
-  } catch {
-    throw new NoteError("the evidence is not JSON");
-  }
-}
-
-function record(value: unknown, what: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new NoteError(`the ${what} is not an object`);
-  return value as Record<string, unknown>;
-}
-
-function optionalRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-/** A request field as recorded; JSON `null` reads as absent. */
-function given(value: unknown) {
-  return value === null ? undefined : value;
-}
-
-/** Present the way the API's completion rule counts it. */
-function nonEmpty(value: unknown) {
-  if (value === undefined || value === null) return false;
-  if (Array.isArray(value) || typeof value === "string") return value.length > 0;
-  return true;
-}
-
-function text(value: unknown, field: string): string {
-  if (typeof value !== "string") throw new NoteError(`the evidence's ${field} is not a string`);
-  return value;
-}
-
-/** An optional string field: absent, JSON null or empty reads as absent, anything else must be text. */
-function optionalText(value: unknown, field: string): string | undefined {
-  const known = given(value);
-  if (known === undefined) return undefined;
-  const read = text(known, field);
-  return read === "" ? undefined : read;
-}
-
-function atomic(value: unknown): value is string {
-  return typeof value === "string" && atomicPattern.test(value);
-}
-
-function present<T extends Record<string, string | null | undefined>>(values: T) {
-  return Object.fromEntries(
-    Object.entries(values).filter(([, value]) => value !== undefined && value !== null),
-  ) as { [K in keyof T]?: NonNullable<T[K]> };
 }
 
 /** Reads hash tiles from a tlog-tiles log served over HTTPS, e.g. `https://log.agentsonintents.com/`. */

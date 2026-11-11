@@ -109,7 +109,7 @@ export interface paths {
         };
         /**
          * Get the receipt of a completed transfer, withdrawal, swap, limit order or deposit
-         * @description Returns the completion event (`execute.completed`) of a transfer, withdrawal, swap, limit order or deposit as a receipt anyone can verify with verifyReceipt (or, for a transfer or withdrawal a payee expects, verifyPaymentReceipt) against a trusted checkpoint and the log's public tiles, plus `details`, a convenience view of its terms read from the same evidence. A limit order is completed when funded and placed (not filled), and its receipt proves only that; a deposit's proves the funds arrived and were credited, not who sent them. `receipt` is null while the event is `PENDING` (the latest checkpoint does not cover it yet; read again later) and for `UNLOGGED` (recorded before the log started), which never becomes `PROVEN`. It is read from the completion event alone, so it stays readable for the audit retention period whatever became of the operation's history. An operation of another type or one that has not completed is refused with 409 receipt_not_available; other executions are proved with getOperationProof.
+         * @description Returns the receipt of a completed transfer, withdrawal, swap, limit order or deposit: a leaf of the log written with the completion event, which anyone can verify with verifyReceipt (or, for a transfer or withdrawal a payee expects, verifyPaymentReceipt) against a trusted checkpoint and the log's public tiles. The receipt commits only to the settled terms, the execution's id and the time; it names no tenant, agent, account, wallet, key or grant, so it is safe to hand to a payee. `details` is the account's own view: those terms plus `usd_value`, the agent's `note`, `grant_id` and `policy_epoch`, which are never in the receipt. A limit order is completed when funded and placed (not filled), and its receipt proves only that; a deposit's proves the funds arrived and were credited, not who sent them. `receipt` is null while `PENDING` (the latest checkpoint does not cover it yet; read again later) and for `UNLOGGED` (recorded before the log started), which never becomes `PROVEN`. It is read from the audit log alone, so it stays readable for the audit retention period whatever became of the operation's history. An operation of another type or one that has not completed is refused with 409 receipt_not_available; other executions are proved with getOperationProof.
          */
         get: operations["getReceipt"];
         put?: never;
@@ -129,7 +129,7 @@ export interface paths {
         };
         /**
          * List an agent's completed executions with their receipts, newest first
-         * @description Every completed transfer, withdrawal, swap, limit order (completed: funded and placed, not filled) and deposit of the agent whose completion event is retained, newest first, in the shape getReceipt returns; `type` keeps one type. Page with `cursor` and `limit`: a page may hold fewer than `limit` items while `next_cursor` is set, so read on until it is null.
+         * @description Every completed transfer, withdrawal, swap, limit order (completed: funded and placed, not filled) and deposit of the agent whose receipt is retained, newest first, in the shape getReceipt returns; `type` keeps one type. Page with `cursor` and `limit`: with `type`, a page may hold fewer than `limit` items while `next_cursor` is set, so read on until it is null.
          */
         get: operations["listReceipts"];
         put?: never;
@@ -1708,6 +1708,7 @@ export interface components {
                 recipient?: string;
                 memo?: string;
                 reference?: string;
+                note?: string;
                 /** @enum {string} */
                 side?: "sell" | "buy";
                 price?: string;
@@ -2496,8 +2497,9 @@ export interface operations {
                             recipient: string;
                             confidential: boolean;
                             reference?: string;
-                            usd_value?: string;
                             settled_at: string;
+                            usd_value?: string;
+                            note?: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
@@ -2511,13 +2513,9 @@ export interface operations {
                             /** @constant */
                             version: 1;
                             origin: string;
-                            agent_id: string;
-                            correlation_id: string;
-                            action: string;
-                            created_at: string;
                             leaf_index: string;
                             opening: string;
-                            evidence: string;
+                            terms: string;
                         } | null;
                     } | {
                         correlation_id: string;
@@ -2531,11 +2529,12 @@ export interface operations {
                             recipient: string;
                             confidential: boolean;
                             reference?: string;
-                            usd_value?: string;
                             chain: string;
                             memo?: string;
                             amount_out?: string;
                             settled_at: string;
+                            usd_value?: string;
+                            note?: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
@@ -2549,13 +2548,9 @@ export interface operations {
                             /** @constant */
                             version: 1;
                             origin: string;
-                            agent_id: string;
-                            correlation_id: string;
-                            action: string;
-                            created_at: string;
                             leaf_index: string;
                             opening: string;
-                            evidence: string;
+                            terms: string;
                         } | null;
                     } | {
                         correlation_id: string;
@@ -2569,9 +2564,10 @@ export interface operations {
                             amount: string;
                             confidential: boolean;
                             amount_out?: string;
-                            usd_value?: string;
                             min_amount_out?: string;
                             settled_at: string;
+                            usd_value?: string;
+                            note?: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
@@ -2585,13 +2581,9 @@ export interface operations {
                             /** @constant */
                             version: 1;
                             origin: string;
-                            agent_id: string;
-                            correlation_id: string;
-                            action: string;
-                            created_at: string;
                             leaf_index: string;
                             opening: string;
-                            evidence: string;
+                            terms: string;
                         } | null;
                     } | {
                         correlation_id: string;
@@ -2605,7 +2597,6 @@ export interface operations {
                             amount: string;
                             confidential: boolean;
                             amount_out?: string;
-                            usd_value?: string;
                             /** @enum {string} */
                             side: "sell" | "buy";
                             price: string;
@@ -2613,6 +2604,8 @@ export interface operations {
                             deadline?: string;
                             order_id: string;
                             settled_at: string;
+                            usd_value?: string;
+                            note?: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
@@ -2626,13 +2619,9 @@ export interface operations {
                             /** @constant */
                             version: 1;
                             origin: string;
-                            agent_id: string;
-                            correlation_id: string;
-                            action: string;
-                            created_at: string;
                             leaf_index: string;
                             opening: string;
-                            evidence: string;
+                            terms: string;
                         } | null;
                     } | {
                         correlation_id: string;
@@ -2650,6 +2639,8 @@ export interface operations {
                             amount_out?: string;
                             deposit_tx_hash?: string;
                             settled_at: string;
+                            usd_value?: string;
+                            note?: string;
                             grant_id?: string;
                             policy_epoch?: string;
                             intent_hash?: string;
@@ -2663,13 +2654,9 @@ export interface operations {
                             /** @constant */
                             version: 1;
                             origin: string;
-                            agent_id: string;
-                            correlation_id: string;
-                            action: string;
-                            created_at: string;
                             leaf_index: string;
                             opening: string;
-                            evidence: string;
+                            terms: string;
                         } | null;
                     };
                 };
@@ -2782,8 +2769,9 @@ export interface operations {
                                 recipient: string;
                                 confidential: boolean;
                                 reference?: string;
-                                usd_value?: string;
                                 settled_at: string;
+                                usd_value?: string;
+                                note?: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
@@ -2797,13 +2785,9 @@ export interface operations {
                                 /** @constant */
                                 version: 1;
                                 origin: string;
-                                agent_id: string;
-                                correlation_id: string;
-                                action: string;
-                                created_at: string;
                                 leaf_index: string;
                                 opening: string;
-                                evidence: string;
+                                terms: string;
                             } | null;
                         } | {
                             correlation_id: string;
@@ -2817,11 +2801,12 @@ export interface operations {
                                 recipient: string;
                                 confidential: boolean;
                                 reference?: string;
-                                usd_value?: string;
                                 chain: string;
                                 memo?: string;
                                 amount_out?: string;
                                 settled_at: string;
+                                usd_value?: string;
+                                note?: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
@@ -2835,13 +2820,9 @@ export interface operations {
                                 /** @constant */
                                 version: 1;
                                 origin: string;
-                                agent_id: string;
-                                correlation_id: string;
-                                action: string;
-                                created_at: string;
                                 leaf_index: string;
                                 opening: string;
-                                evidence: string;
+                                terms: string;
                             } | null;
                         } | {
                             correlation_id: string;
@@ -2855,9 +2836,10 @@ export interface operations {
                                 amount: string;
                                 confidential: boolean;
                                 amount_out?: string;
-                                usd_value?: string;
                                 min_amount_out?: string;
                                 settled_at: string;
+                                usd_value?: string;
+                                note?: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
@@ -2871,13 +2853,9 @@ export interface operations {
                                 /** @constant */
                                 version: 1;
                                 origin: string;
-                                agent_id: string;
-                                correlation_id: string;
-                                action: string;
-                                created_at: string;
                                 leaf_index: string;
                                 opening: string;
-                                evidence: string;
+                                terms: string;
                             } | null;
                         } | {
                             correlation_id: string;
@@ -2891,7 +2869,6 @@ export interface operations {
                                 amount: string;
                                 confidential: boolean;
                                 amount_out?: string;
-                                usd_value?: string;
                                 /** @enum {string} */
                                 side: "sell" | "buy";
                                 price: string;
@@ -2899,6 +2876,8 @@ export interface operations {
                                 deadline?: string;
                                 order_id: string;
                                 settled_at: string;
+                                usd_value?: string;
+                                note?: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
@@ -2912,13 +2891,9 @@ export interface operations {
                                 /** @constant */
                                 version: 1;
                                 origin: string;
-                                agent_id: string;
-                                correlation_id: string;
-                                action: string;
-                                created_at: string;
                                 leaf_index: string;
                                 opening: string;
-                                evidence: string;
+                                terms: string;
                             } | null;
                         } | {
                             correlation_id: string;
@@ -2936,6 +2911,8 @@ export interface operations {
                                 amount_out?: string;
                                 deposit_tx_hash?: string;
                                 settled_at: string;
+                                usd_value?: string;
+                                note?: string;
                                 grant_id?: string;
                                 policy_epoch?: string;
                                 intent_hash?: string;
@@ -2949,13 +2926,9 @@ export interface operations {
                                 /** @constant */
                                 version: 1;
                                 origin: string;
-                                agent_id: string;
-                                correlation_id: string;
-                                action: string;
-                                created_at: string;
                                 leaf_index: string;
                                 opening: string;
-                                evidence: string;
+                                terms: string;
                             } | null;
                         })[];
                         next_cursor: string | null;
@@ -4427,6 +4400,7 @@ export interface operations {
                     destination_asset: string;
                     amount: string;
                     min_amount_out?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -4678,6 +4652,7 @@ export interface operations {
                     price: string;
                     /** Format: date-time */
                     deadline?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -5145,6 +5120,7 @@ export interface operations {
                     recipient: string;
                     memo?: string;
                     reference?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -5266,6 +5242,7 @@ export interface operations {
                     amount: string;
                     recipient: string;
                     reference?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                 };
@@ -5581,6 +5558,7 @@ export interface operations {
                     origin_asset: string;
                     destination_asset?: string;
                     amount?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                 };
@@ -5691,6 +5669,7 @@ export interface operations {
                         destination_asset: string;
                         amount: string;
                         min_amount_out?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5706,6 +5685,7 @@ export interface operations {
                         price: string;
                         /** Format: date-time */
                         deadline?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5719,6 +5699,7 @@ export interface operations {
                         recipient: string;
                         memo?: string;
                         reference?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5732,6 +5713,7 @@ export interface operations {
                         amount: string;
                         recipient: string;
                         reference?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @constant */

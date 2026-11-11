@@ -508,6 +508,10 @@ A receipt shows anyone that one transfer, withdrawal, swap or deposit settled, o
 order was funded and placed. The holder checks it against the public log, without trusting the
 agent's operator or the API. Proving a payment to the payee is one use.
 
+A receipt is made to be handed over. It commits only to the settled terms, the execution's id and
+the time, and names no tenant, agent, account, wallet, key or grant, so a payee cannot link
+receipts to each other or to the payer. Everything else stays with the account, in `details`.
+
 The payer labels a payment with `reference` (1 to 128 printable ASCII characters without spaces,
 e.g. an order id or `sha256:<hex>` of the payment terms). It is kept in the API's record only,
 never sent on chain, and not checked for uniqueness. Once a transfer or withdrawal settles, the
@@ -518,7 +522,8 @@ const paid = await assistant.transfer(agentId, {
   asset: "nep141:usdc.near",
   amount: "2500000",
   recipient: "shop.near",
-  reference: "order-42",
+  reference: "order-42", // shared with the payee
+  note: "Paying order 42, the pizza the owner asked for", // the account's own record only
 });
 // After getStatus reads SUCCESS.
 const item = await api.getReceipt(agentId, paid.correlation_id);
@@ -539,22 +544,25 @@ do {
 } while (cursor);
 ```
 
-`details` is the API's view of the settled terms, read from the evidence the receipt commits to.
-Every type has `settled_at`, `grant_id`, `policy_epoch` and the settlement hashes; the rest
-follows `type`:
+`details` is the account's own view. It holds the terms the receipt commits to (the table below
+and the settlement hashes) and, beside them, what only the account is shown and no receipt
+carries: `settled_at`, `usd_value?`, `note?`, `grant_id?` and `policy_epoch?`.
 
 | `type` | `details` |
 |---|---|
-| `transfer` | `asset`, `amount`, `recipient`, `confidential`, `reference?`, `usd_value?` |
+| `transfer` | `asset`, `amount`, `recipient`, `confidential`, `reference?` |
 | `withdraw` | as a transfer, plus `chain`, `memo?`, `amount_out?` |
-| `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?`, `usd_value?` |
-| `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?`, `usd_value?` |
+| `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?` |
+| `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?` |
 | `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposit_address`, `deposited_amount?`, `amount_out?`, `deposit_tx_hash?` |
 
 `usd_value` is the API's valuation of the requested amount at dispatch, from its cached price, in
 USD with six decimals, rounded up to the next millionth of a dollar (so dust reads `0.000001`); not
 a quote or a settlement price. An account with no USD cap never waits on a price, so it is absent
-when the API held no usable price in memory. A
+when the API held no usable price in memory. `note` is the agent's own words for why it ran the
+execution (optional on transfer, withdraw, swap, limit order and deposit; 1 to 500 characters on
+one line): the owner reads it back here against what happened, and it is never sent to the
+provider, put on chain or written into a receipt. A
 limit order's receipt proves the order was funded and placed under `order_id`, not that it filled;
 a deposit's proves funds arrived and were credited to the account, not who sent them. Shield,
 unshield and anything unsettled answer 409 `receipt_not_available`; prove them with
@@ -614,11 +622,10 @@ provider reported it, or on the destination chain by the returned hashes (`inten
 of `listReceipts` may hold fewer than `limit` items while `next_cursor` is set. Issue a unique `reference` per order: the API does not check uniqueness, and the same
 receipt can be shown twice. A verified receipt proves the API logged the payment as settled on
 the provider's report, with the settlement hash the API requires; it does not prove delivery
-itself, nor on-chain finality for a confidential route. A receipt discloses the whole settled
-event, including stable identifiers of the agent, its custody account and the dispatching key,
-so receipts given out are linkable to each other, and a confidential payment's receipt links that
-payment to the agent's public account for whoever holds it. Read receipts soon: the API deletes an event's
-evidence after 90 days, and a receipt read before then keeps verifying. Native signing routes
+itself, nor on-chain finality for a confidential route, nor who paid: it names no payer, so tie
+a payment to its order by the `reference` you issued and accept each `correlationId` once. A
+public settlement hash can still be looked up on chain, where the paying account is visible. Read receipts soon: the API deletes a receipt's
+terms after 90 days, and a receipt read before then keeps verifying. Native signing routes
 give no receipt. See
 [Receipts](https://github.com/NEAR-Intents-Agent-API/api/blob/main/docs/transparency.md#receipts).
 
