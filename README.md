@@ -546,7 +546,8 @@ do {
 
 `details` is the account's own view. It holds the terms the receipt commits to (the table below
 and the settlement hashes) and, beside them, what only the account is shown and no receipt
-carries: `settled_at`, `usd_value?`, `note?`, `grant_id?` and `policy_epoch?`.
+carries: `settled_at`, `usd_value?`, `note?`, `grant_id?`, `policy_epoch?`, and for a deposit
+`deposit_address?` and `deposit_tx_hash?` (either one locates the credited account).
 
 | `type` | `details` |
 |---|---|
@@ -554,7 +555,7 @@ carries: `settled_at`, `usd_value?`, `note?`, `grant_id?` and `policy_epoch?`.
 | `withdraw` | as a transfer, plus `chain`, `memo?`, `amount_out?` |
 | `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?` |
 | `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?` |
-| `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposit_address`, `deposited_amount?`, `amount_out?`, `deposit_tx_hash?` |
+| `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposited_amount?`, `amount_out?` |
 
 `usd_value` is the API's valuation of the requested amount at dispatch, from its cached price, in
 USD with six decimals, rounded up to the next millionth of a dollar (so dust reads `0.000001`); not

@@ -2634,9 +2634,9 @@ export interface operations {
                             destination_asset?: string;
                             amount?: string;
                             confidential: boolean;
-                            deposit_address: string;
                             deposited_amount?: string;
                             amount_out?: string;
+                            deposit_address?: string;
                             deposit_tx_hash?: string;
                             settled_at: string;
                             usd_value?: string;
@@ -2906,9 +2906,9 @@ export interface operations {
                                 destination_asset?: string;
                                 amount?: string;
                                 confidential: boolean;
-                                deposit_address: string;
                                 deposited_amount?: string;
                                 amount_out?: string;
+                                deposit_address?: string;
                                 deposit_tx_hash?: string;
                                 settled_at: string;
                                 usd_value?: string;

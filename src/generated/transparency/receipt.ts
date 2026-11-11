@@ -3,7 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { auditLeaf, decodeAuditOpening } from "./audit.js";
 import { type Checkpoint, validateCheckpoint } from "./checkpoint.js";
-import { atomic, parseJson, present, record } from "./fields.js";
+import { parseJson, present, record } from "./fields.js";
 import { parseUint64 } from "./framing.js";
 import { HASH_SIZE } from "./hash.js";
 import { NoteError } from "./note.js";
@@ -102,17 +102,18 @@ export type LimitOrderTerms = SettlementHashes & {
   readonly amount_out?: string;
 };
 
-/** Funds that arrived at the deposit address and were credited; it never names who sent them. */
+/**
+ * Funds that arrived at the deposit address and were credited. It names neither who sent them nor
+ * the address: the bridge's public status ties a deposit address to the account it credits.
+ */
 export type DepositTerms = SettlementHashes & {
   readonly type: "deposit";
   readonly origin_asset: string;
   readonly destination_asset?: string;
   readonly amount?: string;
   readonly confidential: boolean;
-  readonly deposit_address: string;
   readonly deposited_amount?: string;
   readonly amount_out?: string;
-  readonly deposit_tx_hash?: string;
 };
 
 /** What a receipt commits to, in the API's public field names. */
@@ -237,50 +238,16 @@ const termFields: Record<ReceiptType, readonly [readonly string[], readonly stri
     ["origin_asset", "destination_asset", "amount", "side", "price", "quantity", "order_id"],
     ["deadline", "amount_out"],
   ],
-  deposit: [
-    ["origin_asset", "deposit_address"],
-    ["destination_asset", "amount", "deposited_amount", "amount_out", "deposit_tx_hash"],
-  ],
+  deposit: [["origin_asset"], ["destination_asset", "amount", "deposited_amount", "amount_out"]],
 };
 
-const chainSettlement = ["tx_hash", "settlement_tx_hash", "destination_tx_hash", "receipt_hash"];
-const routedSettlement = ["settlement_tx_hash", "destination_tx_hash", "receipt_hash"];
-
 /**
- * The settlement identifiers one of which a receipt must name, never fewer than the API's own
- * completion rule asks of the execution: a confidential route settles by its intent hash alone.
+ * A receipt names something to look its settlement up by. Which identifier settles which route is
+ * the API's completion rule, applied before the leaf is written: the leaf itself is that verdict.
  */
-function settlementOf(terms: ReceiptTerms): readonly string[] {
-  switch (terms.type) {
-    // A same-chain NEAR withdrawal is an intent `intents.near` executes; its hash identifies it.
-    case "withdraw":
-      return terms.chain === "near" ? [...chainSettlement, "intent_hash"] : chainSettlement;
-    // A placed order rests, it has not settled: its order id is the proof it is funded.
-    case "limit_order":
-      return ["order_id"];
-    case "transfer":
-      return terms.confidential
-        ? ["intent_hash"]
-        : ["intent_hash", "transfer_intent_hash", "settlement_tx_hash"];
-    case "swap":
-    case "deposit":
-      return terms.confidential ? ["intent_hash"] : routedSettlement;
-  }
-}
-
 function settled(terms: ReceiptTerms) {
   const named = terms as Readonly<Record<string, unknown>>;
-  if (terms.type === "swap") {
-    const { amount_out: out, min_amount_out: minimum } = terms;
-    if (
-      minimum !== undefined &&
-      !(atomic(minimum) && atomic(out) && BigInt(out) >= BigInt(minimum))
-    )
-      throw new NoteError("the swap's amount_out does not meet its minimum");
-    // A public swap credits Intents balances: its output and intent hash settle it.
-    if (!terms.confidential && atomic(out) && /[1-9]/.test(out) && terms.intent_hash) return;
-  }
-  if (!settlementOf(terms).some((field) => named[field] !== undefined))
+  if (![...hashFields, "order_id"].some((field) => named[field] !== undefined))
     throw new NoteError("the receipt names no settlement");
 }
 
@@ -339,14 +306,18 @@ export async function verifyReceipt(
   options: { readonly origin: string; readonly trusted: Checkpoint; readonly readTile: TileReader },
 ): Promise<VerifiedReceipt> {
   const { origin, trusted, readTile } = options;
-  if (receipt.version !== 1) throw new NoteError(`receipt version ${receipt.version} is unknown`);
-  if (receipt.origin !== origin)
-    throw new NoteError(`receipt is for log ${receipt.origin}, not ${origin}`);
+  // Read once: what is returned is what was checked, whatever becomes of the object meanwhile.
+  const { version, origin: log, leaf_index: leaf, opening: opened, terms } = receipt;
+  if (version !== 1) throw new NoteError(`receipt version ${version} is unknown`);
+  if (log !== origin) throw new NoteError(`receipt is for log ${log}, not ${origin}`);
   if (trusted.origin !== origin)
     throw new NoteError("a trusted checkpoint for this origin is required");
   validateCheckpoint(trusted);
-  const { opening, fields } = receiptOpening(receipt);
-  const index = parseUint64(receipt.leaf_index, "receipt leaf index");
+  if (typeof opened !== "string" || typeof terms !== "string")
+    throw new NoteError("the receipt carries no opening or terms");
+  const { opening, fields } = receiptOpening(opened, terms);
+  const read = parseReceiptTerms(terms);
+  const index = parseUint64(leaf, "receipt leaf index");
   if (index >= trusted.size) throw new ReceiptNotCoveredError(index, trusted.size);
   const nodes = inclusionProofNodes(index, trusted.size);
   const rows = await Promise.all(
@@ -364,7 +335,7 @@ export async function verifyReceipt(
   return {
     correlationId: fields.resourceId,
     settledAt: fields.createdAt,
-    terms: parseReceiptTerms(receipt.terms),
+    terms: read,
     leafIndex: index,
   };
 }
@@ -444,14 +415,14 @@ function checkExpected(expect: ExpectedPayment) {
  * The receipt's opening, when it is a receipt leaf committing these terms and nothing more: an
  * opening with any other field is another kind of leaf, whatever it calls itself.
  */
-function receiptOpening(receipt: Receipt) {
-  const opening = utf8ToBytes(receipt.opening);
+function receiptOpening(opened: string, terms: string) {
+  const opening = utf8ToBytes(opened);
   const { fields } = decodeAuditOpening(opening);
   const { action, createdAt, evidenceHash, resourceId } = fields;
   if (action !== RECEIPT_EVENT || Object.keys(fields).sort().join() !== openingFields.join())
     throw new NoteError("the opening is not a receipt's");
   if (!resourceId || !createdAt) throw new NoteError("the opening names no execution or time");
-  if (evidenceHash !== bytesToHex(sha256(utf8ToBytes(receipt.terms))))
+  if (evidenceHash !== bytesToHex(sha256(utf8ToBytes(terms))))
     throw new NoteError("the terms are not what the opening committed");
   return { opening, fields: { resourceId, createdAt } };
 }
