@@ -99,6 +99,9 @@ export type ExecutionDetails = Schemas["ExecutionDetails"];
 export type HistoryPage = Success<"getHistory">;
 export type OperationProof = Success<"getOperationProof">;
 export type AuditProof = OperationProof["events"][number];
+/** A settled execution: a view of its terms in `details` and, once proven, its receipt. */
+export type ReceiptItem = Success<"getReceipt">;
+export type ReceiptPage = Success<"listReceipts">;
 /** A dry swap, withdrawal or limit order: what it would do and every rule it would fail. */
 export type QuoteResponse = Extract<Success<"swap">, { dry: true }>;
 export type SwapRequest = RequestBody<"swap">;
