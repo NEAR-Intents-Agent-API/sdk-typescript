@@ -102,7 +102,7 @@ import type { Policy } from "@near-intents-agent-api/sdk";
 const policy: Policy = {
   frozen: false,
   actions: ["swap", "transfer"], // any of "swap" | "transfer" | "withdraw" | "limit_order"
-  confidential: false, // true also allows the confidential balance and confidential routes
+  confidential: true, // required in a new policy: the agent's account is its confidential balance
   owner_approval: false, // true makes every outgoing action wait for the owner's vote
   assets: "any", // or the exact asset ids the agent may spend
   limits: {
@@ -110,7 +110,7 @@ const policy: Policy = {
     per_transaction: { "nep141:wrap.near": "1000000000000000000000000" },
   },
   max_actions_per_hour: null,
-  destinations: { mode: "only", list: [] }, // no destinations: funds stay in the account
+  destinations: { mode: "only", list: [] }, // no destinations: funds stay in the account (a transfer destination must be confidential)
   budget: { daily_usd: "100", weekly_usd: null, monthly_usd: null }, // USD caps across assets
   timelock_ms: 0, // delay before every money action runs (deposits excepted)
 };
@@ -188,8 +188,7 @@ Incoming funds need no grant. Ask for a deposit address, send to it, and follow 
 ```ts
 const deposit = await api.deposit(agentId, {
   origin_asset: "nep141:usdt.tether-token.near",
-  confidential: false,
-});
+}); // credits the confidential balance, the default
 // Send at least deposit.details.min_amount to deposit.details.deposit_address (with
 // deposit.details.memo if present) before deposit.details.expires_at, then poll
 // getStatus(deposit.correlation_id). Add `amount` (atomic units) for an exact deposit.
@@ -199,7 +198,7 @@ const deposit = await api.deposit(agentId, {
 // (deposit.details.refund_to). Until something is paid in, getHistory lists the
 // address only with { include_unpaid: true }.
 
-const balances = await api.getBalances(agentId);
+const balances = await api.getBalances(agentId); // the confidential balance; { source: "public" } reads the legacy public one
 // Each entry has balance_raw / balance (what the account holds) and available_raw / available:
 // the balance minus queued or timelocked work that has not been dispatched yet. Show and check
 // `available`; dispatched work is already debited. `available` is null when the exact units are
@@ -242,14 +241,31 @@ const execution = await assistant.swap(agentId, swap);
 const done = await settled(execution.correlation_id);
 
 await assistant.transfer(agentId, { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" });
-// NEAR withdrawn to chain "near" always arrives as native NEAR, public or confidential.
+// NEAR withdrawn to chain "near" always arrives as native NEAR, from either balance.
 const withdrawal = { asset: "nep141:wrap.near", amount: "1", chain: "near", recipient: "bob.near" };
 const fees = await assistant.withdraw(agentId, { ...withdrawal, dry: true }); // preview, under its own key
 await assistant.withdraw(agentId, withdrawal);
 ```
 
+### The confidential balance is the default
+
+The agent's account is its confidential balance, and `confidential` defaults to `true` on every
+request that takes it. Omit it: the SDK sends the body as given and adds nothing. `swap`,
+`placeLimitOrder`, `transfer` and `deposit` refuse `confidential: false`, `dry` included, with
+`public_balance_exit_only` (400, layer `request`, not retryable) before any provider call, and a
+`getBalances` without `source` reads the confidential balance. A public balance an agent still holds
+has only exits: `shield` moves it to the confidential balance, and `withdraw` with
+`confidential: false` pays it out of the public balance (the only request that may still send
+`confidential: false`). `unshield` is deprecated: the API refuses every new request with
+`public_balance_exit_only`; unshields recorded earlier still read through `getStatus` and
+`getHistory`. A new policy (`agent_create`, `policy_update`) must set `confidential: true` and list
+only confidential `transfer` destinations; a stored policy with `confidential: false` is still
+enforced, and its owner signs a `policy_update` that turns it on before the agent can shield or
+act confidentially. Read leftover public funds with `getBalances(agentId, { source: "public" })`.
+
 If the policy refuses, the call fails with a stable `code` such as `policy_action_denied`,
-`policy_destination_denied`, `spend_budget_exceeded` or `insufficient_balance`, and `error.layer`
+`policy_destination_denied`, `spend_budget_exceeded`, `insufficient_balance` or
+`public_balance_exit_only`, and `error.layer`
 says which layer refused: `request`, `auth`, `grant`, `policy`, `budget`, `balance`, `provider` or
 `api`.
 
@@ -272,8 +288,9 @@ the live request would wait in `PENDING_APPROVAL` for the owner.
 
 A limit order rests on the NEAR Intents order book until it fills, is cancelled or reaches its
 `deadline` (default and maximum seven days). The policy must list `limit_order` in `actions`, and
-`confidential` as well for `confidential: true` (funded from, and paid back to, the confidential
-balance). An optional `limit_order: { max_deviation_bps }` (0 to 300, default 100) bounds how far
+`confidential` as well: an order is funded from, and paid back to, the confidential balance
+(`confidential: false` is refused with `public_balance_exit_only`; a resting public order placed
+earlier still reads and cancels). An optional `limit_order: { max_deviation_bps }` (0 to 300, default 100) bounds how far
 worse than the market the price may be: a sell that far below, a buy that far above. A better
 price is not limited. The order is judged like a swap on the asset it spends (assets, limits,
 actions per hour, USD budget, `timelock_ms`, `schedule`, `owner_approval`); `destinations` does
@@ -293,7 +310,7 @@ const orderId = placed.details?.order_id;
 
 const open = await assistant.listLimitOrders(agentId, { open: true }); // { data: [...] }
 const live = await assistant.getLimitOrder(agentId, orderId); // fill_status, partial_fills, payouts
-await assistant.cancelLimitOrder(agentId, orderId); // unfilled funds return to the balance
+await assistant.cancelLimitOrder(agentId, orderId); // unfilled funds return to the balance that funded the order
 let round = await assistant.cancelAllLimitOrders(agentId); // up to 50 a call
 while (!round.complete) round = await assistant.cancelAllLimitOrders(agentId);
 ```
@@ -410,7 +427,7 @@ const update = await api.generateIntent({
   type: "policy_update",
   agent_id: agentId,
   expected_revision: current.revision,
-  policy: { ...current.policy, timelock_ms: 60_000 },
+  policy: { ...current.policy, timelock_ms: 60_000 }, // a stored policy with confidential: false must set it to true
 });
 // Owner signs update.intent, backend submits, then follow update.correlation_id.
 ```
@@ -610,9 +627,9 @@ try {
 
 `expect` must match the payment's request exactly: `recipient`, `asset` as requested (a NEAR
 withdrawal to chain `near` delivers native NEAR whatever was requested), atomic `amount` and
-`reference`, all non-empty strings; `confidential: true` to accept a confidential payment
-(without it only a public one matches, because a confidential payment completes on the provider's
-word with nothing to check on chain); `chain` for a withdrawal (without
+`reference`, all non-empty strings; `confidential`, which defaults to `true`: only a payment from
+the confidential balance matches unless you pass `confidential: false` to accept one from the
+legacy public balance (a withdrawal sent with `confidential: false`); `chain` for a withdrawal (without
 `chain` only a transfer matches); and `memo`, exactly (without `memo`, a withdrawal with one never
 matches; an explicit empty memo matches only `memo: ""`). `amount` is what the payer sent: a
 transfer delivers it whole, but a withdrawal delivers it less the network or bridge fee, in the
@@ -725,7 +742,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof`, `getReceipt`, `listReceipts` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
-| Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield`, `cancelLimitOrder`, `cancelAllLimitOrders` |
+| Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield` (deprecated: always refused), `cancelLimitOrder`, `cancelAllLimitOrders` |
 | Limit order reads | `listLimitOrders`, `getLimitOrder` |
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |

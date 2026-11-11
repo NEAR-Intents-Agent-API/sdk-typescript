@@ -329,6 +329,10 @@ export class AgentApi {
     return this.call(endpoints.getWallet, { params: { agent_id: agentId }, ...options });
   }
 
+  /**
+   * The agent's balances. `source` defaults to `confidential`, the agent's account; pass
+   * `source: "public"` to read the legacy public balance, which can only be shielded or withdrawn.
+   */
   getBalances(
     agentId: string,
     query: { source?: BalanceSource; asset?: string } = {},
@@ -435,7 +439,11 @@ export class AgentApi {
 
   // -------------------------------------------------------------------------------- executions
 
-  /** Swap assets. `dry: true` returns a quote and needs no idempotency key. */
+  /**
+   * Swap assets on the confidential balance. `confidential` defaults to `true`; `false` is
+   * refused with `public_balance_exit_only`, `dry` included. `dry: true` returns a quote and
+   * needs no idempotency key.
+   */
   swap(
     agentId: string,
     request: SwapRequest & { dry: true },
@@ -455,9 +463,9 @@ export class AgentApi {
   }
 
   /**
-   * Places a resting limit order on the agent's public NEAR Intents balance, or with
-   * `confidential: true` on its confidential balance, and funds it in full. The call answers once
-   * the order is funded: `SUCCESS` means it rests, not that it filled. Read the order with
+   * Places a resting limit order on the agent's confidential balance and funds it in full.
+   * `confidential` defaults to `true`; `false` is refused with `public_balance_exit_only`, `dry`
+   * included. The call answers once the order is funded: `SUCCESS` means it rests, not that it filled. Read the order with
    * `details.order_id` through `getLimitOrder`. The policy must allow `limit_order` and price the
    * order within `limit_order.max_deviation_bps` of the market. `dry: true` previews it, listing
    * every rule a live order would fail as a warning; it needs no grant and no idempotency key.
@@ -514,7 +522,8 @@ export class AgentApi {
   }
 
   /**
-   * Cancels a resting order and refunds what is unfilled to the agent's balance. Needs a grant but
+   * Cancels a resting order and refunds what is unfilled to the balance that funded it (the legacy
+   * public balance for an order recorded there). Needs a grant but
    * no timelock, schedule or approval, and works while the agent is frozen or the policy no longer
    * allows `limit_order`. The USD budget charged when the order was placed is not given back.
    */
@@ -544,9 +553,12 @@ export class AgentApi {
   }
 
   /**
-   * Withdraw to any supported chain. `dry: true` previews under the grant and an idempotency key,
-   * like a withdrawal: the SDK creates one unless passed. An identical preview under the same key
-   * replays its result for 60 seconds; after that, preview under a new key.
+   * Withdraw to any supported chain. Pays from the confidential balance by default;
+   * `confidential: false` pays from the legacy public balance, the one public exit (with
+   * `shield`, which moves it to the confidential balance). `dry: true` previews under the grant
+   * and an idempotency key, like a withdrawal: the SDK creates one unless passed. An identical
+   * preview under the same key replays its result for 60 seconds; after that, preview under a new
+   * key.
    */
   withdraw(
     agentId: string,
@@ -570,6 +582,10 @@ export class AgentApi {
     });
   }
 
+  /**
+   * Transfer from the agent's confidential balance to the recipient's confidential balance.
+   * `confidential` defaults to `true`; `false` is refused with `public_balance_exit_only`.
+   */
   transfer(
     agentId: string,
     request: TransferRequest,
@@ -582,6 +598,11 @@ export class AgentApi {
     });
   }
 
+  /**
+   * Moves an amount from the legacy public balance to the confidential balance. The policy must
+   * have `confidential` on. Nothing moves funds back: the public balance can only be shielded or
+   * withdrawn with `confidential: false`.
+   */
   shield(
     agentId: string,
     request: BalanceMoveRequest,
@@ -594,6 +615,13 @@ export class AgentApi {
     });
   }
 
+  /**
+   * @deprecated The API refuses every unshield with 400 `public_balance_exit_only`, `dry`
+   * included, before it reads the body: the confidential balance is the agent's account and only
+   * the legacy public balance has an exit. To pay out of the public balance use
+   * `withdraw({ confidential: false })`; to move it to the confidential balance use `shield`.
+   * Unshields recorded earlier still read through `getStatus` and `getHistory`.
+   */
   unshield(
     agentId: string,
     request: BalanceMoveRequest,
@@ -607,8 +635,11 @@ export class AgentApi {
   }
 
   /**
-   * Creates an inbound public or confidential deposit address; no grant token is needed. Omit
-   * `amount` to accept any amount at or above `details.min_amount`; refunds go to the agent.
+   * Creates an inbound deposit address that credits the agent's confidential balance; no grant
+   * token is needed. `confidential` defaults to `true`; `false` is refused with
+   * `public_balance_exit_only`, and a policy without `confidential` refuses the deposit with
+   * `policy_action_denied`. Omit `amount` to accept any amount at or above `details.min_amount`;
+   * refunds go to the agent.
    */
   deposit(
     agentId: string,
