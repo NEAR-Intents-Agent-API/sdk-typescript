@@ -502,6 +502,134 @@ checked here: to tie the notary keys to attested code, verify the attestation in
 `proof.notary.birth.attestation` with a quote verifier such as dstack-verifier and compare its
 `report_data` with `verified.birthReportData`.
 
+## Receipts
+
+A receipt shows anyone that one transfer, withdrawal, swap or deposit settled, or that a limit
+order was funded and placed. The holder checks it against the public log, without trusting the
+agent's operator or the API. Proving a payment to the payee is one use.
+
+A receipt is made to be handed over. It commits only to the settled terms, the execution's id and
+the time, and names no tenant, agent, account, wallet, key or grant, so a payee cannot link
+receipts to each other or to the payer. Everything else stays with the account, in `details`.
+
+The payer labels a payment with `reference` (1 to 128 printable ASCII characters without spaces,
+e.g. an order id or `sha256:<hex>` of the payment terms). It is kept in the API's record only,
+never sent on chain, and not checked for uniqueness. Once a transfer or withdrawal settles, the
+payer reads its receipt and sends it as JSON:
+
+```ts
+const paid = await assistant.transfer(agentId, {
+  asset: "nep141:usdc.near",
+  amount: "2500000",
+  recipient: "shop.near",
+  reference: "order-42", // shared with the payee
+  note: "Paying order 42, the pizza the owner asked for", // the account's own record only
+});
+// After getStatus reads SUCCESS.
+const item = await api.getReceipt(agentId, paid.correlation_id);
+if (item.receipt === null) {
+  // PENDING: no checkpoint covers it yet, read it again later. UNLOGGED: recorded before the
+  // log started; it never gets a receipt.
+} else {
+  const json = JSON.stringify(item.receipt); // give this to the recipient
+}
+
+// Every settled transfer, newest first; omit `type` for every type. A page can be short, or
+// empty, while next_cursor is set: keep paging until it is null.
+let cursor: string | undefined;
+do {
+  const page = await api.listReceipts(agentId, { type: "transfer", limit: 50, cursor });
+  for (const entry of page.data) console.log(entry.correlation_id, entry.status, entry.details);
+  cursor = page.next_cursor ?? undefined;
+} while (cursor);
+```
+
+`details` is the account's own view. It holds the terms the receipt commits to (the table below
+and the settlement hashes) and, beside them, what only the account is shown and no receipt
+carries: `settled_at`, `usd_value?`, `note?`, `grant_id?`, `policy_epoch?`, and for a deposit
+`deposit_address?` and `deposit_tx_hash?` (either one locates the credited account).
+
+| `type` | `details` |
+|---|---|
+| `transfer` | `asset`, `amount`, `recipient`, `confidential`, `reference?` |
+| `withdraw` | as a transfer, plus `chain`, `memo?`, `amount_out?` |
+| `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?` |
+| `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?` |
+| `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposited_amount?`, `amount_out?` |
+
+`usd_value` is the API's valuation of the requested amount at dispatch, from its cached price, in
+USD with six decimals, rounded up to the next millionth of a dollar (so dust reads `0.000001`); not
+a quote or a settlement price. An account with no USD cap never waits on a price, so it is absent
+when the API held no usable price in memory. `note` is the agent's own words for why it ran the
+execution (optional on transfer, withdraw, swap, limit order and deposit; 1 to 500 characters on
+one line): the owner reads it back here against what happened, and it is never sent to the
+provider, put on chain or written into a receipt. A
+limit order's receipt proves the order was funded and placed under `order_id`, not that it filled;
+a deposit's proves funds arrived and were credited to the account, not who sent them. Shield,
+unshield and anything unsettled answer 409 `receipt_not_available`; prove them with
+`getOperationProof`.
+
+Anyone checks a receipt of any type with `verifyReceipt(receipt, { origin, trusted, readTile })`,
+which returns its typed `terms` (`terms.type` picks the fields above). A payee owed a payment uses
+`verifyPaymentReceipt`, which also refuses anything but a transfer or withdrawal and compares the
+terms with what it is owed.
+
+The payee fetches the witness head once and verifies each receipt against it and the log's
+tiles:
+
+```ts
+import {
+  fetchWitnessCheckpoint,
+  LogUnavailableError,
+  logTileReader,
+  NoteError,
+  ProofError,
+  ReceiptNotCoveredError,
+  verifyPaymentReceipt,
+} from "@near-intents-agent-api/sdk";
+
+const trusted = await fetchWitnessCheckpoint("https://api.agentsonintents.com", origin, witnessKey);
+const readTile = logTileReader("https://log.agentsonintents.com/");
+try {
+  const payment = await verifyPaymentReceipt(receipt, {
+    origin,
+    trusted,
+    readTile,
+    expect: { recipient: "shop.near", asset: "nep141:usdc.near", amount: "2500000", reference: "order-42" },
+  });
+  // Accept each payment.correlationId once; the verifier keeps no record of what it accepted.
+} catch (error) {
+  if (error instanceof ReceiptNotCoveredError || error instanceof LogUnavailableError) {
+    // Retry: the trusted head is older than the payment (fetch a newer one), or the log did not
+    // answer or did not serve a tile yet. Neither says anything about the receipt.
+  } else if (error instanceof NoteError || error instanceof ProofError) {
+    // Reject: the receipt does not prove this payment.
+  } else throw error; // TypeError: `expect` is incomplete
+}
+```
+
+`expect` must match the payment's request exactly: `recipient`, `asset` as requested (a NEAR
+withdrawal to chain `near` delivers native NEAR whatever was requested), atomic `amount` and
+`reference`, all non-empty strings; `confidential: true` to accept a confidential payment
+(without it only a public one matches, because a confidential payment completes on the provider's
+word with nothing to check on chain); `chain` for a withdrawal (without
+`chain` only a transfer matches); and `memo`, exactly (without `memo`, a withdrawal with one never
+matches; an explicit empty memo matches only `memo: ""`). `amount` is what the payer sent: a
+transfer delivers it whole, but a withdrawal delivers it less the network or bridge fee, in the
+destination chain's units, so a withdrawal receipt proves the debit, not what arrived. A payee
+owed an exact amount by withdrawal confirms the arrival from the result's `amountOut`, when the
+provider reported it, or on the destination chain by the returned hashes (`intentHash`,
+`transferIntentHash`, `txHash`, `destinationTxHash`, `settlementTxHash`, `receiptHash`). A page
+of `listReceipts` may hold fewer than `limit` items while `next_cursor` is set. Issue a unique `reference` per order: the API does not check uniqueness, and the same
+receipt can be shown twice. A verified receipt proves the API logged the payment as settled on
+the provider's report, with the settlement hash the API requires; it does not prove delivery
+itself, nor on-chain finality for a confidential route, nor who paid: it names no payer, so tie
+a payment to its order by the `reference` you issued and accept each `correlationId` once. A
+public settlement hash can still be looked up on chain, where the paying account is visible. Read receipts soon: the API deletes a receipt's
+terms after 90 days, and a receipt read before then keeps verifying. Native signing routes
+give no receipt. See
+[Receipts](https://github.com/NEAR-Intents-Agent-API/api/blob/main/docs/transparency.md#receipts).
+
 ## Idempotency
 
 Every write (`generateIntent`, `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield`, `deposit`)
@@ -594,7 +722,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 
 | Area | Methods |
 |---|---|
-| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof` |
+| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof`, `getReceipt`, `listReceipts` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield`, `cancelLimitOrder`, `cancelAllLimitOrders` |
@@ -602,7 +730,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `fetchWitnessCheckpoint` |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `verifyReceipt`, `verifyPaymentReceipt`, `logTileReader` (errors: `ReceiptNotCoveredError`, `LogUnavailableError`) |
 
 `getPartnerQuota()` reports how many agents you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,

@@ -37,6 +37,8 @@ import type {
   PolicyHistoryView,
   PolicyView,
   QuoteResponse,
+  ReceiptItem,
+  ReceiptPage,
   RecoverRequest,
   ReleaseListView,
   ReleaseView,
@@ -274,6 +276,38 @@ export class AgentApi {
     return this.call(endpoints.getOperationProof, {
       params: { agent_id: agentId, correlation_id: correlationId },
       query,
+      ...options,
+    });
+  }
+
+  /**
+   * The agent's settled transfers, withdrawals, swaps, limit orders and deposits, newest first;
+   * `type` keeps one type. Each `PROVEN` item carries a `receipt` anyone checks with
+   * `verifyReceipt`, or a payee with `verifyPaymentReceipt`.
+   */
+  listReceipts(
+    agentId: string,
+    query: { cursor?: string; limit?: number; type?: ReceiptItem["type"] } = {},
+    options: RequestOptions = {},
+  ): Promise<ReceiptPage> {
+    return this.call(endpoints.listReceipts, {
+      params: { agent_id: agentId },
+      query,
+      ...options,
+    });
+  }
+
+  /**
+   * One settled transfer's, withdrawal's, swap's, limit order's or deposit's receipt. Anything
+   * else is 409 `receipt_not_available`; prove it with `getOperationProof`.
+   */
+  getReceipt(
+    agentId: string,
+    correlationId: string,
+    options: RequestOptions = {},
+  ): Promise<ReceiptItem> {
+    return this.call(endpoints.getReceipt, {
+      params: { agent_id: agentId, correlation_id: correlationId },
       ...options,
     });
   }

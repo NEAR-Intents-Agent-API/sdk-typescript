@@ -20,6 +20,28 @@ export {
   type VerifiedOperation,
   verifyOperationProof,
 } from "./generated/transparency/operation-proof.js";
+export {
+  type DepositTerms,
+  type ExpectedPayment,
+  type LimitOrderTerms,
+  LogUnavailableError,
+  logTileReader,
+  type PaymentTerms,
+  parseReceiptTerms,
+  type Receipt,
+  ReceiptNotCoveredError,
+  type ReceiptTerms,
+  type ReceiptType,
+  type SettlementHashes,
+  type SwapTerms,
+  type TileReader,
+  type TransferTerms,
+  type VerifiedPayment,
+  type VerifiedReceipt,
+  verifyPaymentReceipt,
+  verifyReceipt,
+  type WithdrawTerms,
+} from "./generated/transparency/receipt.js";
 export { ProofError } from "./generated/transparency/verify.js";
 export {
   createGrantCredential,

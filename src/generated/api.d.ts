@@ -100,6 +100,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/operations/{correlation_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the receipt of a completed transfer, withdrawal, swap, limit order or deposit
+         * @description Returns the receipt of a completed transfer, withdrawal, swap, limit order or deposit: a leaf of the log written with the completion event, which anyone can verify with verifyReceipt (or, for a transfer or withdrawal a payee expects, verifyPaymentReceipt) against a trusted checkpoint and the log's public tiles. The receipt commits only to the settled terms, the execution's id and the time; it names no tenant, agent, account, wallet, key or grant, so it is safe to hand to a payee. `details` is the account's own view: those terms plus `usd_value`, the agent's `note`, `grant_id` and `policy_epoch`, which are never in the receipt. A limit order is completed when funded and placed (not filled), and its receipt proves only that; a deposit's proves the funds arrived and were credited, not who sent them. `receipt` is null while `PENDING` (the latest checkpoint does not cover it yet; read again later) and for `UNLOGGED` (recorded before the log started), which never becomes `PROVEN`. It is read from the audit log alone, so it stays readable for the audit retention period whatever became of the operation's history. An operation of another type or one that has not completed is refused with 409 receipt_not_available; other executions are proved with getOperationProof.
+         */
+        get: operations["getReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List an agent's completed executions with their receipts, newest first
+         * @description Every completed transfer, withdrawal, swap, limit order (completed: funded and placed, not filled) and deposit of the agent whose receipt is retained, newest first, in the shape getReceipt returns; `type` keeps one type. Page with `cursor` and `limit`: with `type`, a page may hold fewer than `limit` items while `next_cursor` is set, so read on until it is null.
+         */
+        get: operations["listReceipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents": {
         parameters: {
             query?: never;
@@ -1667,6 +1707,8 @@ export interface components {
                 chain?: string;
                 recipient?: string;
                 memo?: string;
+                reference?: string;
+                note?: string;
                 /** @enum {string} */
                 side?: "sell" | "buy";
                 price?: string;
@@ -1694,6 +1736,7 @@ export interface components {
             min_amount_out?: string | null;
             requested_min_amount_out?: string;
             requested_asset?: string;
+            usd_value?: string;
             order_id?: string | null;
             delivered?: string | null;
             expires_at?: string | null;
@@ -2347,6 +2390,548 @@ export interface operations {
                             proof: string | null;
                             evidence: string | null;
                         }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    getReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                correlation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correlation_id: string;
+                        /** @constant */
+                        type: "transfer";
+                        /** @enum {string} */
+                        status: "PROVEN" | "PENDING" | "UNLOGGED";
+                        details: {
+                            asset: string;
+                            amount: string;
+                            recipient: string;
+                            confidential: boolean;
+                            reference?: string;
+                            settled_at: string;
+                            usd_value?: string;
+                            note?: string;
+                            grant_id?: string;
+                            policy_epoch?: string;
+                            intent_hash?: string;
+                            transfer_intent_hash?: string;
+                            tx_hash?: string;
+                            destination_tx_hash?: string;
+                            settlement_tx_hash?: string;
+                            receipt_hash?: string;
+                        };
+                        receipt: {
+                            /** @constant */
+                            version: 1;
+                            origin: string;
+                            leaf_index: string;
+                            opening: string;
+                            terms: string;
+                        } | null;
+                    } | {
+                        correlation_id: string;
+                        /** @constant */
+                        type: "withdraw";
+                        /** @enum {string} */
+                        status: "PROVEN" | "PENDING" | "UNLOGGED";
+                        details: {
+                            asset: string;
+                            amount: string;
+                            recipient: string;
+                            confidential: boolean;
+                            reference?: string;
+                            chain: string;
+                            memo?: string;
+                            amount_out?: string;
+                            settled_at: string;
+                            usd_value?: string;
+                            note?: string;
+                            grant_id?: string;
+                            policy_epoch?: string;
+                            intent_hash?: string;
+                            transfer_intent_hash?: string;
+                            tx_hash?: string;
+                            destination_tx_hash?: string;
+                            settlement_tx_hash?: string;
+                            receipt_hash?: string;
+                        };
+                        receipt: {
+                            /** @constant */
+                            version: 1;
+                            origin: string;
+                            leaf_index: string;
+                            opening: string;
+                            terms: string;
+                        } | null;
+                    } | {
+                        correlation_id: string;
+                        /** @constant */
+                        type: "swap";
+                        /** @enum {string} */
+                        status: "PROVEN" | "PENDING" | "UNLOGGED";
+                        details: {
+                            origin_asset: string;
+                            destination_asset: string;
+                            amount: string;
+                            confidential: boolean;
+                            amount_out?: string;
+                            min_amount_out?: string;
+                            settled_at: string;
+                            usd_value?: string;
+                            note?: string;
+                            grant_id?: string;
+                            policy_epoch?: string;
+                            intent_hash?: string;
+                            transfer_intent_hash?: string;
+                            tx_hash?: string;
+                            destination_tx_hash?: string;
+                            settlement_tx_hash?: string;
+                            receipt_hash?: string;
+                        };
+                        receipt: {
+                            /** @constant */
+                            version: 1;
+                            origin: string;
+                            leaf_index: string;
+                            opening: string;
+                            terms: string;
+                        } | null;
+                    } | {
+                        correlation_id: string;
+                        /** @constant */
+                        type: "limit_order";
+                        /** @enum {string} */
+                        status: "PROVEN" | "PENDING" | "UNLOGGED";
+                        details: {
+                            origin_asset: string;
+                            destination_asset: string;
+                            amount: string;
+                            confidential: boolean;
+                            amount_out?: string;
+                            /** @enum {string} */
+                            side: "sell" | "buy";
+                            price: string;
+                            quantity: string;
+                            deadline?: string;
+                            order_id: string;
+                            settled_at: string;
+                            usd_value?: string;
+                            note?: string;
+                            grant_id?: string;
+                            policy_epoch?: string;
+                            intent_hash?: string;
+                            transfer_intent_hash?: string;
+                            tx_hash?: string;
+                            destination_tx_hash?: string;
+                            settlement_tx_hash?: string;
+                            receipt_hash?: string;
+                        };
+                        receipt: {
+                            /** @constant */
+                            version: 1;
+                            origin: string;
+                            leaf_index: string;
+                            opening: string;
+                            terms: string;
+                        } | null;
+                    } | {
+                        correlation_id: string;
+                        /** @constant */
+                        type: "deposit";
+                        /** @enum {string} */
+                        status: "PROVEN" | "PENDING" | "UNLOGGED";
+                        details: {
+                            origin_asset: string;
+                            destination_asset?: string;
+                            amount?: string;
+                            confidential: boolean;
+                            deposited_amount?: string;
+                            amount_out?: string;
+                            deposit_address?: string;
+                            deposit_tx_hash?: string;
+                            settled_at: string;
+                            usd_value?: string;
+                            note?: string;
+                            grant_id?: string;
+                            policy_epoch?: string;
+                            intent_hash?: string;
+                            transfer_intent_hash?: string;
+                            tx_hash?: string;
+                            destination_tx_hash?: string;
+                            settlement_tx_hash?: string;
+                            receipt_hash?: string;
+                        };
+                        receipt: {
+                            /** @constant */
+                            version: 1;
+                            origin: string;
+                            leaf_index: string;
+                            opening: string;
+                            terms: string;
+                        } | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    listReceipts: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                type?: "transfer" | "withdraw" | "swap" | "limit_order" | "deposit";
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: ({
+                            correlation_id: string;
+                            /** @constant */
+                            type: "transfer";
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            details: {
+                                asset: string;
+                                amount: string;
+                                recipient: string;
+                                confidential: boolean;
+                                reference?: string;
+                                settled_at: string;
+                                usd_value?: string;
+                                note?: string;
+                                grant_id?: string;
+                                policy_epoch?: string;
+                                intent_hash?: string;
+                                transfer_intent_hash?: string;
+                                tx_hash?: string;
+                                destination_tx_hash?: string;
+                                settlement_tx_hash?: string;
+                                receipt_hash?: string;
+                            };
+                            receipt: {
+                                /** @constant */
+                                version: 1;
+                                origin: string;
+                                leaf_index: string;
+                                opening: string;
+                                terms: string;
+                            } | null;
+                        } | {
+                            correlation_id: string;
+                            /** @constant */
+                            type: "withdraw";
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            details: {
+                                asset: string;
+                                amount: string;
+                                recipient: string;
+                                confidential: boolean;
+                                reference?: string;
+                                chain: string;
+                                memo?: string;
+                                amount_out?: string;
+                                settled_at: string;
+                                usd_value?: string;
+                                note?: string;
+                                grant_id?: string;
+                                policy_epoch?: string;
+                                intent_hash?: string;
+                                transfer_intent_hash?: string;
+                                tx_hash?: string;
+                                destination_tx_hash?: string;
+                                settlement_tx_hash?: string;
+                                receipt_hash?: string;
+                            };
+                            receipt: {
+                                /** @constant */
+                                version: 1;
+                                origin: string;
+                                leaf_index: string;
+                                opening: string;
+                                terms: string;
+                            } | null;
+                        } | {
+                            correlation_id: string;
+                            /** @constant */
+                            type: "swap";
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            details: {
+                                origin_asset: string;
+                                destination_asset: string;
+                                amount: string;
+                                confidential: boolean;
+                                amount_out?: string;
+                                min_amount_out?: string;
+                                settled_at: string;
+                                usd_value?: string;
+                                note?: string;
+                                grant_id?: string;
+                                policy_epoch?: string;
+                                intent_hash?: string;
+                                transfer_intent_hash?: string;
+                                tx_hash?: string;
+                                destination_tx_hash?: string;
+                                settlement_tx_hash?: string;
+                                receipt_hash?: string;
+                            };
+                            receipt: {
+                                /** @constant */
+                                version: 1;
+                                origin: string;
+                                leaf_index: string;
+                                opening: string;
+                                terms: string;
+                            } | null;
+                        } | {
+                            correlation_id: string;
+                            /** @constant */
+                            type: "limit_order";
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            details: {
+                                origin_asset: string;
+                                destination_asset: string;
+                                amount: string;
+                                confidential: boolean;
+                                amount_out?: string;
+                                /** @enum {string} */
+                                side: "sell" | "buy";
+                                price: string;
+                                quantity: string;
+                                deadline?: string;
+                                order_id: string;
+                                settled_at: string;
+                                usd_value?: string;
+                                note?: string;
+                                grant_id?: string;
+                                policy_epoch?: string;
+                                intent_hash?: string;
+                                transfer_intent_hash?: string;
+                                tx_hash?: string;
+                                destination_tx_hash?: string;
+                                settlement_tx_hash?: string;
+                                receipt_hash?: string;
+                            };
+                            receipt: {
+                                /** @constant */
+                                version: 1;
+                                origin: string;
+                                leaf_index: string;
+                                opening: string;
+                                terms: string;
+                            } | null;
+                        } | {
+                            correlation_id: string;
+                            /** @constant */
+                            type: "deposit";
+                            /** @enum {string} */
+                            status: "PROVEN" | "PENDING" | "UNLOGGED";
+                            details: {
+                                origin_asset: string;
+                                destination_asset?: string;
+                                amount?: string;
+                                confidential: boolean;
+                                deposited_amount?: string;
+                                amount_out?: string;
+                                deposit_address?: string;
+                                deposit_tx_hash?: string;
+                                settled_at: string;
+                                usd_value?: string;
+                                note?: string;
+                                grant_id?: string;
+                                policy_epoch?: string;
+                                intent_hash?: string;
+                                transfer_intent_hash?: string;
+                                tx_hash?: string;
+                                destination_tx_hash?: string;
+                                settlement_tx_hash?: string;
+                                receipt_hash?: string;
+                            };
+                            receipt: {
+                                /** @constant */
+                                version: 1;
+                                origin: string;
+                                leaf_index: string;
+                                opening: string;
+                                terms: string;
+                            } | null;
+                        })[];
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -3815,6 +4400,7 @@ export interface operations {
                     destination_asset: string;
                     amount: string;
                     min_amount_out?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -4066,6 +4652,7 @@ export interface operations {
                     price: string;
                     /** Format: date-time */
                     deadline?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -4532,6 +5119,8 @@ export interface operations {
                     chain: string;
                     recipient: string;
                     memo?: string;
+                    reference?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                     /** @default false */
@@ -4652,6 +5241,8 @@ export interface operations {
                     asset: string;
                     amount: string;
                     recipient: string;
+                    reference?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                 };
@@ -4967,6 +5558,7 @@ export interface operations {
                     origin_asset: string;
                     destination_asset?: string;
                     amount?: string;
+                    note?: string;
                     /** @default false */
                     confidential?: boolean;
                 };
@@ -5077,6 +5669,7 @@ export interface operations {
                         destination_asset: string;
                         amount: string;
                         min_amount_out?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5092,6 +5685,7 @@ export interface operations {
                         price: string;
                         /** Format: date-time */
                         deadline?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5104,6 +5698,8 @@ export interface operations {
                         chain: string;
                         recipient: string;
                         memo?: string;
+                        reference?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @default false */
@@ -5116,6 +5712,8 @@ export interface operations {
                         asset: string;
                         amount: string;
                         recipient: string;
+                        reference?: string;
+                        note?: string;
                         /** @default false */
                         confidential?: boolean;
                         /** @constant */
