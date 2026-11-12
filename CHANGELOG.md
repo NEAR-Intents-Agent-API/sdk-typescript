@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 (2026-11-12)
+
+### Payment receipts
 
 Payment receipts (near/near-intents-agent-api#155). Types regenerated from that merge
 (13543116). Needs an API with receipts for the new methods; everything else still works against
@@ -21,13 +23,46 @@ the previous API.
   a trusted checkpoint and the log's tiles and returns its typed `terms`.
   `verifyPaymentReceipt(receipt, { origin, trusted, readTile, expect })` is for a payee: it refuses
   anything but a transfer or withdrawal and compares the terms with `expect` (`recipient`, `asset`,
-  `amount`, `reference`, and `chain` / `memo` for a withdrawal). It accepts only a public payment
-  by default; pass `expect.confidential: true` to accept a confidential one. Also exported:
+  `amount`, `reference`, and `chain` / `memo` for a withdrawal). It accepts only a confidential
+  payment by default; pass `expect.confidential: false` to accept one from the legacy public
+  balance (see the confidential-by-default entry below). Also exported:
   `logTileReader(url)`, `parseReceiptTerms`, `LogUnavailableError`, `ReceiptNotCoveredError` and
   the types `Receipt`, `ReceiptTerms`, `ReceiptType`, `TransferTerms`, `WithdrawTerms`,
   `SwapTerms`, `LimitOrderTerms`, `DepositTerms`, `SettlementHashes`, `ExpectedPayment`,
   `PaymentTerms`, `VerifiedReceipt`, `VerifiedPayment`, `TileReader`, plus `ReceiptItem` and
   `ReceiptPage`.
+
+### Confidential by default
+
+Confidential by default (near/near-intents-agent-api#157). Types regenerated from API main
+b96969fa. **Behaviour change for callers that omit `confidential`:** they now spend, credit and
+read the confidential balance, where before they used the public one. The SDK sends request bodies
+as given and sets no default itself, so the change comes with the API, and a build against an
+older API keeps the old behaviour.
+
+- `confidential` defaults to `true` on `swap`, `placeLimitOrder`, `withdraw`, `transfer` and
+  `deposit` (the generated request types document `@default true`). `confidential: false` is
+  refused with the new error code `public_balance_exit_only` (400, layer `request`, not
+  retryable), `dry` included, on `swap`, `placeLimitOrder`, `transfer` and `deposit`.
+  `withdraw({ confidential: false })` still works: it pays from the legacy public balance, which
+  `shield` (unchanged) or that withdrawal alone can empty. Retrying a request recorded before the
+  change with the same key and an omitted `confidential` is a different request now (`409
+  idempotency_conflict`): resend `confidential: false` to match the record.
+- `unshield()` is `@deprecated`: the API refuses every new request with `public_balance_exit_only`.
+  The method stays because the endpoint does; unshields recorded earlier still read through
+  `getStatus` and `getHistory`.
+- `getBalances` without `source` reads the confidential balance; `{ source: "public" }` still
+  reads the public one.
+- A new policy (`agent_create`, `policy_update`) must set `confidential: true` and list only
+  confidential `transfer` destinations, or the API refuses it. Stored policies with
+  `confidential: false` still parse; their owner signs a `policy_update` turning it on before the
+  agent can shield or act confidentially, and until then a deposit address is refused with
+  `policy_action_denied`.
+- `verifyPaymentReceipt` accepts a confidential payment by default. A payment from the public
+  balance (a withdrawal sent with `confidential: false`) needs `expect.confidential: false`.
+  This reverses the default described in the receipts entry above.
+- `cancelLimitOrder` refunds to the balance that funded the order, so a resting public order
+  placed before the change still cancels to the public balance.
 
 ## 0.8.2
 

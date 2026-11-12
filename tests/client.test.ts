@@ -346,6 +346,66 @@ test("error layer and retryable come from the first error; an absent flag reads 
   }
 });
 
+test("a public request is refused with public_balance_exit_only; the SDK adds no confidential field", async () => {
+  const calls: { url: URL; body: unknown }[] = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input, init) => {
+      calls.push({ url: new URL(String(input)), body: JSON.parse(String(init?.body ?? "null")) });
+      return Response.json(
+        {
+          errors: [
+            {
+              status: "400",
+              code: "public_balance_exit_only",
+              layer: "request",
+              title: "Refused",
+              meta: { retryable: false },
+            },
+          ],
+          meta: { request_id: "request-3" },
+        },
+        { status: 400 },
+      );
+    },
+  });
+  const transfer = { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" };
+  const refusals = [
+    api.transfer(agentId, { ...transfer, confidential: false }, { idempotencyKey: "public-one" }),
+    // Deprecated, and refused whatever the body.
+    api.unshield(agentId, { asset: transfer.asset, amount: "1" }, { idempotencyKey: "public-two" }),
+  ];
+  for (const refusal of refusals)
+    await assert.rejects(refusal, (error: unknown) => {
+      assert.ok(error instanceof AgentApiError);
+      assert.equal(error.status, 400);
+      assert.equal(error.code, "public_balance_exit_only");
+      assert.equal(error.layer, "request");
+      assert.equal(error.retryable, false);
+      return true;
+    });
+  // The default is the API's: an omitted `confidential` stays omitted on the wire.
+  assert.deepEqual(calls[0]?.body, { ...transfer, confidential: false });
+  assert.deepEqual(calls[1]?.body, { asset: transfer.asset, amount: "1" });
+});
+
+test("balances send no source unless asked, leaving the API's confidential default", async () => {
+  const urls: URL[] = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input) => {
+      urls.push(new URL(String(input)));
+      return Response.json({});
+    },
+  });
+  await api.getBalances(agentId);
+  await api.getBalances(agentId, { source: "public" });
+  assert.equal(urls[0]?.searchParams.has("source"), false);
+  assert.equal(urls[1]?.searchParams.get("source"), "public");
+});
+
 test("Retry-After reaches the error in seconds, from delay-seconds or an HTTP date", async () => {
   const inFive = new Date(Date.now() + 5_000).toUTCString();
   for (const [header, seconds] of [

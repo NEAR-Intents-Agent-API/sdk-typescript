@@ -200,7 +200,7 @@ export interface paths {
         };
         /**
          * Get the agent's balances
-         * @description `source=public` (default) and `confidential` list every non-zero asset. Amounts are atomic.
+         * @description `source=confidential` (default), the agent's account, and `source=public`, the legacy public balance that can only be shielded or withdrawn, list every non-zero asset. Amounts are atomic.
          */
         get: operations["getBalances"];
         put?: never;
@@ -375,7 +375,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`.
+         * @description Swaps on the confidential balance; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap` and `confidential`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["swap"];
         delete?: never;
@@ -399,7 +399,7 @@ export interface paths {
         put?: never;
         /**
          * Place a resting limit order
-         * @description Places a limit order on the agent's public NEAR Intents balance, or with `confidential: true` on its confidential balance, and funds it in full. A `sell` spends `quantity` of `base_asset`; a `buy` spends the `quote_asset` that `quantity` costs at `price`, rounded up. The order rests until it fills, is cancelled or reaches `deadline` (default and maximum seven days); proceeds and refunds return to the balance that funded it. A live order requires `X-Grant-Token` for a live grant, and the account policy must allow `limit_order` (and `confidential` for a confidential order). It then runs through the same rules as a swap on the asset it spends: assets, per-asset limits, actions per hour, the USD budget (charged on the spent value when the order is placed, and not given back when it is cancelled), `timelock_ms`, `schedule` and `owner_approval`. `destinations` does not apply. Its price is judged against the market when it is placed (and again when a timelock or approval releases it): a sell at most `limit_order.max_deviation_bps` (100 when omitted) below the base asset's USD price over the quote asset's, a buy at most that far above, or it is refused with `policy_price_deviation_exceeded`; with no fresh price for either asset it is refused with `market_price_unavailable`. A timelocked order whose release finds no fresh price waits and is released again for a few minutes before it fails with `market_price_unavailable`; one priced outside the bound at release fails at once. An owner's approve vote refused for the price releases nothing: the order stays held (see `owner_approval`). A better price than the market is not limited. The order must be worth at least 0.1 USD (`amount_too_low`); an order whose spent asset has no fresh USD price skips this check, and the provider applies its own minimum. `SUCCESS` means the order is funded and resting, not filled: `details.order_id` names it, and the limit-orders reads below follow its fills. 1Click adds its own app fee to every order (`app_fees` on the order), which is not an API fee. With `dry: true` it needs only the API key (no grant, no `Idempotency-Key`), places no order and returns `spend` (USD value and budget left), `quote` (what the order spends and what a full fill delivers) and `warnings` listing each rule a live order would fail under its code.
+         * @description Places a limit order on the agent's confidential balance and funds it in full; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A `sell` spends `quantity` of `base_asset`; a `buy` spends the `quote_asset` that `quantity` costs at `price`, rounded up. The order rests until it fills, is cancelled or reaches `deadline` (default and maximum seven days); proceeds and refunds return to the balance that funded it. A live order requires `X-Grant-Token` for a live grant, and the account policy must allow `limit_order` and `confidential`. It then runs through the same rules as a swap on the asset it spends: assets, per-asset limits, actions per hour, the USD budget (charged on the spent value when the order is placed, and not given back when it is cancelled), `timelock_ms`, `schedule` and `owner_approval`. `destinations` does not apply. Its price is judged against the market when it is placed (and again when a timelock or approval releases it): a sell at most `limit_order.max_deviation_bps` (100 when omitted) below the base asset's USD price over the quote asset's, a buy at most that far above, or it is refused with `policy_price_deviation_exceeded`; with no fresh price for either asset it is refused with `market_price_unavailable`. A timelocked order whose release finds no fresh price waits and is released again for a few minutes before it fails with `market_price_unavailable`; one priced outside the bound at release fails at once. An owner's approve vote refused for the price releases nothing: the order stays held (see `owner_approval`). A better price than the market is not limited. The order must be worth at least 0.1 USD (`amount_too_low`); an order whose spent asset has no fresh USD price skips this check, and the provider applies its own minimum. `SUCCESS` means the order is funded and resting, not filled: `details.order_id` names it, and the limit-orders reads below follow its fills. 1Click adds its own app fee to every order (`app_fees` on the order), which is not an API fee. With `dry: true` it needs only the API key (no grant, no `Idempotency-Key`), places no order and returns `spend` (USD value and budget left), `quote` (what the order spends and what a full fill delivers) and `warnings` listing each rule a live order would fail under its code. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["placeLimitOrder"];
         delete?: never;
@@ -439,7 +439,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel one limit order
-         * @description Cancels a resting order; what is unfilled is refunded to the agent's balance. Requires `X-Grant-Token` for a live grant. Cancelling spends no budget and waits for no timelock, schedule or approval, and it works while the agent is frozen and after the policy stops allowing `limit_order`: the owner's rules never trap an order. Only an archived or deleted agent is refused. The USD budget charged when the order was placed is not given back. The reply is the order as the provider reports it with every field optional, and `{}` when the reply carries none: read the order for its state.
+         * @description Cancels a resting order; what is unfilled is refunded to the balance that funded it, the legacy public balance for an order recorded there. Requires `X-Grant-Token` for a live grant. Cancelling spends no budget and waits for no timelock, schedule or approval, and it works while the agent is frozen and after the policy stops allowing `limit_order`: the owner's rules never trap an order. Only an archived or deleted agent is refused. The USD budget charged when the order was placed is not given back. The reply is the order as the provider reports it with every field optional, and `{}` when the reply carries none: read the order for its state.
          */
         post: operations["cancelLimitOrder"];
         delete?: never;
@@ -479,7 +479,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, public or confidential.
+         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -499,7 +499,7 @@ export interface paths {
         put?: never;
         /**
          * Transfer an asset to another NEAR Intents account
-         * @description Requires `X-Grant-Token` for a live grant; the account policy must allow `transfer` (and `confidential` when `confidential` is true) and the destination.
+         * @description Transfers from the agent's confidential balance to the recipient's confidential balance; `confidential: false` is refused with `public_balance_exit_only` before any provider call. Requires `X-Grant-Token` for a live grant; the account policy must allow `transfer` and `confidential`, and its destination rule the recipient. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["transfer"];
         delete?: never;
@@ -518,8 +518,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Move a public balance to the confidential shard
-         * @description The confidential balance, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * Move the legacy public balance to the confidential balance
+         * @description Moves an amount from the agent's legacy public balance to its confidential balance. With a withdrawal (`confidential: false`), it is the only way to empty the public balance; nothing moves funds back. Requires `X-Grant-Token` for a live grant, and the account policy must have `confidential`: an agent whose stored policy has it off needs an owner-signed `policy_update` that turns it on first. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["shield"];
         delete?: never;
@@ -539,7 +539,7 @@ export interface paths {
         put?: never;
         /**
          * Move a confidential balance back to public
-         * @description The confidential balance, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Refused. Every request, whatever its body (`dry` included), is answered 400 `public_balance_exit_only` before anything is read or sent. The agent's account is its confidential balance, and the legacy public balance can only be emptied: shield moves it to the confidential balance and a withdrawal with `confidential: false` pays it out. Unshields recorded earlier still read and settle through `GET /v1/status` and history. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["unshield"];
         delete?: never;
@@ -559,7 +559,7 @@ export interface paths {
         put?: never;
         /**
          * Get a deposit address that funds the agent from another chain
-         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's public or confidential balance, without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive; without `amount` it stays open 3 days, and an address still unpaid a day after `details.expires_at` ends `FAILED` with `deposit_expired`. History lists an address only once something was paid into it. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address.
+         * @description Requires an API key, not an owner grant. Creates a NEAR Intents 1Click deposit address that credits the agent's confidential balance (`confidential: false` is refused with `public_balance_exit_only` before any provider call), which the account policy's `confidential` must allow (`policy_action_denied`): a policy without it could not spend what arrives. It runs without spending agent funds or applying an execution delay. Send only `origin_asset` to fund the agent with any amount at or above `details.min_amount` until `details.expires_at`; add `amount` for an exact deposit. A failed or late deposit refunds into the agent's own balance (`details.refund_to`); no request field chooses a refund address. The status reads `PENDING_DEPOSIT` with `details.deposit_address` (and `details.memo` where the chain needs one) until funds arrive; without `amount` it stays open 3 days, and an address still unpaid a day after `details.expires_at` ends `FAILED` with `deposit_expired`. History lists an address only once something was paid into it. Funds go only to that address. `correlation_id` (`op_…`) is a tracking id and never an address. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
          */
         post: operations["deposit"];
         delete?: never;
@@ -4401,7 +4401,7 @@ export interface operations {
                     amount: string;
                     min_amount_out?: string;
                     note?: string;
-                    /** @default false */
+                    /** @default true */
                     confidential?: boolean;
                     /** @default false */
                     dry?: boolean;
@@ -4653,7 +4653,7 @@ export interface operations {
                     /** Format: date-time */
                     deadline?: string;
                     note?: string;
-                    /** @default false */
+                    /** @default true */
                     confidential?: boolean;
                     /** @default false */
                     dry?: boolean;
@@ -5121,7 +5121,7 @@ export interface operations {
                     memo?: string;
                     reference?: string;
                     note?: string;
-                    /** @default false */
+                    /** @default true */
                     confidential?: boolean;
                     /** @default false */
                     async?: boolean;
@@ -5243,7 +5243,7 @@ export interface operations {
                     recipient: string;
                     reference?: string;
                     note?: string;
-                    /** @default false */
+                    /** @default true */
                     confidential?: boolean;
                 };
             };
@@ -5559,7 +5559,7 @@ export interface operations {
                     destination_asset?: string;
                     amount?: string;
                     note?: string;
-                    /** @default false */
+                    /** @default true */
                     confidential?: boolean;
                 };
             };
@@ -5670,7 +5670,7 @@ export interface operations {
                         amount: string;
                         min_amount_out?: string;
                         note?: string;
-                        /** @default false */
+                        /** @default true */
                         confidential?: boolean;
                         /** @default false */
                         dry?: boolean;
@@ -5686,7 +5686,7 @@ export interface operations {
                         /** Format: date-time */
                         deadline?: string;
                         note?: string;
-                        /** @default false */
+                        /** @default true */
                         confidential?: boolean;
                         /** @default false */
                         dry?: boolean;
@@ -5700,7 +5700,7 @@ export interface operations {
                         memo?: string;
                         reference?: string;
                         note?: string;
-                        /** @default false */
+                        /** @default true */
                         confidential?: boolean;
                         /** @default false */
                         async?: boolean;
@@ -5714,7 +5714,7 @@ export interface operations {
                         recipient: string;
                         reference?: string;
                         note?: string;
-                        /** @default false */
+                        /** @default true */
                         confidential?: boolean;
                         /** @constant */
                         type: "transfer";
