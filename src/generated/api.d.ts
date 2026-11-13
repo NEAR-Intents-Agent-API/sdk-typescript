@@ -303,7 +303,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List requests waiting for approval */
+        /**
+         * List requests waiting for approval
+         * @description The wallet's pending approvals, at most 100. Under `owner_approval` an agent can have at most 100 requests waiting for the owner (`approval_backlog_full` refuses the next), so `truncated` is true only when the provider holds more than the API created: approve or reject some to see the rest. A listing may be up to 10 seconds old; a vote always reads its approval live.
+         */
         get: operations["listApprovals"];
         put?: never;
         post?: never;
@@ -1424,6 +1427,10 @@ export interface components {
             details: {
                 grant_id: string | null;
                 committed_correlation_ids: string[] | null;
+                committed_cancellations: {
+                    order_id: string | null;
+                    committed_at: string;
+                }[] | null;
                 committed_truncated: boolean | null;
             };
         } | {
@@ -1844,7 +1851,7 @@ export interface components {
             } | null;
             warnings: {
                 /** @enum {string} */
-                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is";
+                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "approval_backlog_full" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is";
                 detail: string;
                 /** Format: date-time */
                 available_at?: string;
@@ -3993,6 +4000,7 @@ export interface operations {
                             required_approvals: number;
                             expires_at: string;
                         }[];
+                        truncated: boolean;
                     };
                 };
             };
