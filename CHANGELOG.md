@@ -6,14 +6,14 @@ Approval backlog and cancel reporting (near/near-intents-agent-api#167). Types r
 API main 8814ae83. Additive only: nothing a 0.9.0 caller does changes, and every method still
 works against an API without #167.
 
-- New refusal and dry-run warning code `approval_backlog_full` (409, layer `request`). Under
+- New refusal and dry-run warning code `approval_backlog_full` (409, layer `policy`). Under
   `owner_approval` an agent can have at most 100 committed requests waiting for the owner; the next
   is refused before it reaches the provider, with nothing sent, until the owner approves or
   rejects one. Requests the API already failed take no place.
 - `GET /v1/agents/{agent_id}/approvals` holds at most 100 approvals and adds `truncated`, true
   only when the provider holds more open approvals than the API created. `listApprovals` still
   returns the list. A listing that cannot finish within 20 seconds fails with
-  `outlayer_unavailable` (503).
+  `provider_unavailable` (503).
 - `grant_revoke` status `details` add `committed_cancellations`
   (`{ order_id, committed_at }[] | null`, at most 100, `order_id` null for a cancel of every open
   order): the limit-order cancels the grant committed that may still reach the provider. They
