@@ -396,6 +396,10 @@ export class AgentApi {
     });
   }
 
+  /**
+   * The agent's pending approvals, at most 100. The API also returns `truncated`, true only when
+   * the provider holds more open approvals than the API created; this method returns the list.
+   */
   async listApprovals(agentId: string, options: RequestOptions = {}): Promise<ApprovalView[]> {
     return (
       await this.call<{ data: ApprovalView[] }>(endpoints.listApprovals, {
