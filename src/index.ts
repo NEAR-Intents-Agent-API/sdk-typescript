@@ -3,6 +3,7 @@ export {
   type AgentApiOptions,
   createAgentApi,
   DEFAULT_BASE_URL,
+  type GrantSessionOptions,
   type IdempotentOptions,
   type RequestOptions,
 } from "./client.js";
@@ -50,3 +51,15 @@ export {
 } from "./grants.js";
 export { createIdempotencyKey, type IdempotentResult } from "./idempotency.js";
 export type * from "./types.js";
+export {
+  createGrantProof,
+  createKeyAssertion,
+  createWorkloadKey,
+  type GrantProofRequest,
+  jwkThumbprintUri,
+  localJwkSigner,
+  oidcGrantAudience,
+  type WorkloadKey,
+  type WorkloadPrivateJwk,
+  type WorkloadSigner,
+} from "./workload-identity.js";

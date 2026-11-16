@@ -5,6 +5,9 @@ import { base64urlnopad } from "@scure/base";
 /** Shape of a grant token: `ngt_` plus 32 random bytes in unpadded base64url. */
 export const grantTokenPattern = /^ngt_[A-Za-z0-9_-]{43}$/;
 
+/** Shape of a grant session token: `ngs_` plus 32 random bytes, from `exchangeGrantToken`. */
+export const grantSessionTokenPattern = /^ngs_[A-Za-z0-9_-]{43}$/;
+
 /** A new grant token and the commitment the owner signs for it. */
 export type GrantCredential = {
   /** `ngt_…`. Store it on your backend (encrypted); it is shown nowhere else. */

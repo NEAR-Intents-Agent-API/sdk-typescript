@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.9.2 (2026-11-16)
+
+Workload identity federation for grants (near/near-intents-agent-api#86). Types regenerated from
+API main (7310159d). Additive: nothing a 0.9.1 caller does changes. The new methods need an API
+with #86; a grant token (`ngt_…`) works as before.
+
+- New: `exchangeGrantToken(agentId, { subject_token, subject_token_type?, grant_id? })` trades a
+  workload's OIDC identity token, or a key assertion, for an `ngs_…` session token
+  (`POST /v1/agents/{agent_id}/grants/token`).
+- New: `forGrantSession(agentId, { subjectToken | signer, grantId?, refreshBeforeSeconds? })`
+  returns a client that exchanges on its first delegated call and keeps the `ngs_…` session.
+  Concurrent calls share one exchange.
+  - Renewal starts `refreshBeforeSeconds` (default 60) before the session ends, and never earlier
+    than mid-life: the lead time is the smaller of that value and half the session's life.
+  - From that point the current token keeps serving while one background exchange runs, until 5
+    seconds before the session ends. A failed background exchange is ignored; after that point a
+    call waits for an exchange and fails with its error.
+  - A failed exchange is not repeated for 5 seconds, so an outage does not cost one exchange (or
+    one KMS signature) per call.
+  - A delegated call the API refuses with `agent_grant_required` (a revoked or replaced grant)
+    throws as before and is never repeated; it also drops the cached session, so the next call
+    exchanges again.
+  - A grant holds at most 100 live sessions: keep one client per grant.
+- New: `forGrantProof({ grantId, signer })` returns a client that signs every delegated call with
+  the key of a `public_key` grant and sends `X-Grant-Proof` instead of `X-Grant-Token`: the proof
+  binds the grant, method, URL, exact body bytes and `Idempotency-Key`, and every attempt signs a
+  new one.
+- The `signal` and timeout of a call also cover its credential step (the session exchange, or the
+  signer of a proof, such as a KMS), and raise the same errors as a fetch abort or timeout, with
+  the request's `idempotencyKey`. An abort never cancels an exchange other callers share.
+- `forGrantProof` and `forGrantSession` check `grantId` locally (64 lowercase hex characters), and
+  `forGrantSession` throws unless exactly one of `signer` and `subjectToken` is given.
+- New helpers: `createWorkloadKey("Ed25519" | "P-256")`, `localJwkSigner(privateJwk)`,
+  `jwkThumbprintUri(publicJwk)`, `oidcGrantAudience(baseUrl, agentId)`,
+  `createKeyAssertion(signer, { baseUrl, agentId })` and `createGrantProof(signer, request)`, and
+  the types `WorkloadSigner`, `WorkloadKey`, `WorkloadPrivateJwk` and `GrantProofRequest`. A signer
+  is `{ publicJwk, sign(signingInput) }`, so a key in a KMS or HSM works.
+- `grant_issue.credential` is now typed as a token commitment, `{ type: "oidc", … }` or
+  `{ type: "public_key", jwk }` (`GrantIssueCredential`, `OidcGrantCredential`,
+  `PublicKeyGrantCredential`, `GrantPublicKeyJwk`, `OidcSigningKey`). Grant views gain
+  `credential_type` (`GrantCredentialType`: `token`, `oidc` or `public_key`).
+- `forGrant` and the `grantToken` option accept `ngs_…` session tokens as well as `ngt_…` grant
+  tokens; the refusal message is now `grantToken is not an ngt_ or ngs_ token`.
+- New error codes from the API: `subject_token_invalid`, `grant_proof_invalid`, `grant_ambiguous`,
+  `grant_session_limit_reached`, `issuer_unavailable` and `grant_credential_invalid`.
+
 ## 0.9.1 (2026-11-13)
 
 Approval backlog and cancel reporting (near/near-intents-agent-api#167). Types regenerated from

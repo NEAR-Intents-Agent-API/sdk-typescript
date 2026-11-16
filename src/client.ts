@@ -1,7 +1,8 @@
-import { requestError } from "./errors.js";
+import { AgentApiError, requestError } from "./errors.js";
 import type { EndpointDefinition } from "./generated/routes.js";
 import { endpoints } from "./generated/routes.js";
-import { grantTokenPattern } from "./grants.js";
+import { GrantSession } from "./grant-session.js";
+import { grantSessionTokenPattern, grantTokenPattern } from "./grants.js";
 import { type IdempotentResult, requestIdempotency } from "./idempotency.js";
 import { readResponseJson } from "./response-utils.js";
 import type {
@@ -21,6 +22,8 @@ import type {
   EvmSignTypedDataRequest,
   GenerateIntentRequest,
   GenerateIntentResponseOf,
+  GrantTokenExchangeRequest,
+  GrantTokenExchangeResponse,
   GrantView,
   HistoryPage,
   IntentSignature,
@@ -53,6 +56,7 @@ import type {
   SolanaSignTransferRequest,
   StatusResponse,
   StatusResponseOf,
+  SubjectTokenType,
   SubmitIntentRequest,
   SwapRequest,
   TokenView,
@@ -61,6 +65,7 @@ import type {
   WhoamiView,
   WithdrawRequest,
 } from "./types.js";
+import { createGrantProof, createKeyAssertion, type WorkloadSigner } from "./workload-identity.js";
 
 /** The hosted API. Pass `baseUrl` only for a self-hosted or local deployment. */
 export const DEFAULT_BASE_URL = "https://api.agentsonintents.com";
@@ -80,11 +85,49 @@ export type AgentApiOptions = {
   /** Custom fetch, e.g. for tests or instrumentation. */
   fetch?: typeof fetch;
   /**
-   * Grant token (`ngt_…`) sent as `X-Grant-Token` on delegated calls (swap, withdraw, transfer,
-   * shield, limit orders, …). Prefer `api.forGrant(token)`, which returns a separate client per grant.
+   * Grant token (`ngt_…`) or session token (`ngs_…`) sent as `X-Grant-Token` on delegated calls
+   * (swap, withdraw, transfer, shield, limit orders, …). Prefer `api.forGrant(token)`, which
+   * returns a separate client per grant.
    */
   grantToken?: string;
 };
+
+/**
+ * Options of {@link AgentApi.forGrantSession}: where the workload's identity comes from. An
+ * `oidc` grant's identity token comes from its platform (`subjectToken`); a `public_key` grant's
+ * key signs the assertion itself (`signer`).
+ */
+export type GrantSessionOptions = {
+  /** The grant to open the session on. Needed only when several live grants accept the identity. */
+  grantId?: string;
+  /**
+   * Start exchanging again this many seconds before the session ends. Defaults to 60; a short
+   * session starts at mid-life at the earliest (the lead time is at most half its lifetime).
+   */
+  refreshBeforeSeconds?: number;
+} & (
+  | {
+      /**
+       * Returns a current identity token for the grant's audience (`oidcGrantAudience`). It is
+       * called for every exchange, so read the platform's token again instead of caching it.
+       */
+      subjectToken: () => string | Promise<string>;
+      /** The JWT type of the subject token. Defaults to `urn:ietf:params:oauth:token-type:jwt`. */
+      subjectTokenType?: SubjectTokenType;
+      signer?: never;
+    }
+  | {
+      /** Signs a new key assertion for every exchange. */
+      signer: WorkloadSigner;
+      subjectToken?: never;
+      subjectTokenType?: never;
+    }
+);
+
+/** How a client authenticates its grant, other than a fixed `grantToken`. */
+type GrantAuth =
+  | { kind: "session"; session: GrantSession }
+  | { kind: "proof"; grantId: string; signer: WorkloadSigner };
 
 export type RequestOptions = {
   /** Cancels this request. */
@@ -113,6 +156,24 @@ const settlementEndpoints = new Set<EndpointDefinition>([
   endpoints.unshield,
 ]);
 
+/**
+ * Settles with `promise`, or rejects with the signal's reason as soon as it aborts, which is what
+ * a fetch under that signal rejects with. The promise itself is not cancelled.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
+/** A grant ID as the API issues it: 64 lowercase hex characters. */
+function assertGrantId(grantId: string) {
+  if (!/^[0-9a-f]{64}$/.test(grantId))
+    throw new Error("grantId must be the 64-character hex id of an issued grant");
+}
+
 /** `{agent_id}` path segments filled from `params`, each URI-encoded. */
 function fillPath(template: string, params: Record<string, string> = {}) {
   return template.replace(/\{([^}]+)\}/g, (_, name: string) => {
@@ -131,6 +192,7 @@ function fillPath(template: string, params: Record<string, string> = {}) {
  * unchanged, and `submitIntent` sends the wallet's output back. `getStatus` tracks the result.
  */
 export class AgentApi {
+  private grantAuth: GrantAuth | undefined;
   private readonly origin: string;
   private readonly fetcher: typeof fetch;
   private readonly maxResponseBytes: number;
@@ -144,8 +206,12 @@ export class AgentApi {
       throw new Error("baseUrl must be a plain origin");
     if (typeof options.apiKey !== "string" || options.apiKey.trim() === "")
       throw new Error("apiKey must be a non-empty string");
-    if (options.grantToken !== undefined && !grantTokenPattern.test(options.grantToken))
-      throw new Error("grantToken is not an ngt_ token");
+    if (
+      options.grantToken !== undefined &&
+      !grantTokenPattern.test(options.grantToken) &&
+      !grantSessionTokenPattern.test(options.grantToken)
+    )
+      throw new Error("grantToken is not an ngt_ or ngs_ token");
     const maxResponseBytes =
       options.maxResponseBytes === undefined ? 8 * 1_048_576 : options.maxResponseBytes;
     if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes <= 0)
@@ -159,36 +225,99 @@ export class AgentApi {
     return this.call(endpoints.getPartnerQuota, options);
   }
 
-  private headers(endpoint: EndpointDefinition, call: Call): Record<string, string> {
+  /**
+   * The headers of one attempt. Built per attempt because a grant proof is single-use: a retry
+   * signs a new one, and the `Idempotency-Key` it repeats is what finds the first attempt. The
+   * credential step (an exchange, a signer such as a KMS) runs under the call's `signal`.
+   */
+  private async headers(
+    endpoint: EndpointDefinition,
+    call: Call,
+    request: { url: URL; body: string | undefined },
+    signal: AbortSignal,
+  ): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       accept: "application/json",
       "x-api-key": this.options.apiKey,
     };
     if (call.body !== undefined) headers["content-type"] = "application/json";
     if (call.idempotencyKey !== undefined) headers["idempotency-key"] = call.idempotencyKey;
-    // Only delegated endpoints receive the grant token; nothing else needs it.
-    if (endpoint.grant && this.options.grantToken)
-      headers["x-grant-token"] = this.options.grantToken;
+    // Only delegated endpoints receive the grant credential; nothing else needs it.
+    if (endpoint.grant)
+      Object.assign(headers, await this.grantHeaders(endpoint, call, request, signal));
     return headers;
+  }
+
+  /** The grant credential header: a token or a proof, never both (the API refuses both). */
+  private async grantHeaders(
+    endpoint: EndpointDefinition,
+    call: Call,
+    request: { url: URL; body: string | undefined },
+    signal: AbortSignal,
+  ): Promise<Record<string, string>> {
+    const auth = this.grantAuth;
+    if (auth?.kind === "proof") {
+      signal.throwIfAborted();
+      const proof = createGrantProof(auth.signer, {
+        grantId: auth.grantId,
+        method: endpoint.method,
+        url: request.url,
+        body: request.body,
+        idempotencyKey: call.idempotencyKey,
+      });
+      return { "x-grant-proof": await untilAborted(proof, signal) };
+    }
+    if (auth?.kind === "session") {
+      signal.throwIfAborted();
+      // The exchange is shared with other callers, so an abort stops this wait, not the exchange.
+      return { "x-grant-token": await untilAborted(auth.session.token(), signal) };
+    }
+    return this.options.grantToken ? { "x-grant-token": this.options.grantToken } : {};
+  }
+
+  /**
+   * A session the API no longer knows (its grant was revoked, replaced or expired) would be sent
+   * until it ends, so forget it: the next call exchanges again. This request is never repeated.
+   */
+  private forgetRefusedSession(sent: string | undefined, error: unknown) {
+    if (
+      this.grantAuth?.kind === "session" &&
+      sent !== undefined &&
+      error instanceof AgentApiError &&
+      (error.status === 401 || error.status === 403) &&
+      error.code === "agent_grant_required"
+    )
+      this.grantAuth.session.invalidate(sent);
   }
 
   private async call<T>(endpoint: EndpointDefinition, call: Call = {}): Promise<T> {
     const { dry, keyed, idempotencyKey } = requestIdempotency(endpoint, call);
+    let sentToken: string | undefined;
     try {
       const url = new URL(`${this.origin}${fillPath(endpoint.path, call.params)}`);
       for (const [key, value] of Object.entries(call.query ?? {}))
         if (value !== undefined) url.searchParams.set(key, String(value));
-      const headers = this.headers(endpoint, { ...call, idempotencyKey });
+      // Serialized once: a grant proof signs these exact bytes.
+      const body = call.body === undefined ? undefined : JSON.stringify(call.body);
       const settlement = settlementEndpoints.has(endpoint) && !dry;
+      // Built first: the timeout and the caller's signal also cover the credential step.
       const signals = [
         AbortSignal.timeout(this.options.timeoutMs ?? (settlement ? 150_000 : 65_000)),
       ];
       if (call.signal) signals.push(call.signal);
+      const signal = AbortSignal.any(signals);
+      const headers = await this.headers(
+        endpoint,
+        { ...call, idempotencyKey },
+        { url, body },
+        signal,
+      );
+      sentToken = headers["x-grant-token"];
       const response = await this.fetcher(url, {
         method: endpoint.method.toUpperCase(),
         headers,
-        body: call.body === undefined ? undefined : JSON.stringify(call.body),
-        signal: AbortSignal.any(signals),
+        body,
+        signal,
         redirect: "error",
         credentials: "omit",
       });
@@ -197,6 +326,7 @@ export class AgentApi {
         ? { ...(json as T), idempotencyKey }
         : (json as T);
     } catch (error) {
+      this.forgetRefusedSession(sentToken, error);
       throw requestError(error, idempotencyKey);
     }
   }
@@ -207,6 +337,62 @@ export class AgentApi {
    */
   forGrant(grantToken: string): AgentApi {
     return new AgentApi({ ...this.options, grantToken, maxResponseBytes: this.maxResponseBytes });
+  }
+
+  /**
+   * A client that runs delegated calls under a federated grant (`oidc` or `public_key`) by
+   * session. It exchanges the workload's identity for an `ngs_…` session token on the first
+   * delegated call, keeps it, and exchanges again shortly before it ends; concurrent calls share
+   * one exchange. In the last minute of a session the current token keeps serving while one
+   * background exchange runs, so a brief issuer outage costs nothing; a failed exchange is not
+   * repeated for a few seconds.
+   *
+   * Revoking or replacing the grant ends its sessions at once. A delegated call the API then
+   * refuses with `agent_grant_required` throws that error, is never repeated, and drops the
+   * cached session: the next call exchanges again (and fails the same way if no live grant
+   * accepts the identity). The API holds at most 100 live sessions per grant, so keep one client
+   * per grant and reuse it; creating one per invocation in a serverless function burns sessions.
+   * `signal` and the timeout of each call cover its exchange too.
+   */
+  forGrantSession(agentId: string, options: GrantSessionOptions): AgentApi {
+    if ((options.signer === undefined) === (options.subjectToken === undefined))
+      throw new Error("pass exactly one of signer and subjectToken");
+    if (options.grantId !== undefined) assertGrantId(options.grantId);
+    const refreshBefore = options.refreshBeforeSeconds ?? 60;
+    if (!Number.isFinite(refreshBefore) || refreshBefore < 0)
+      throw new RangeError("refreshBeforeSeconds must be a non-negative number");
+    const exchange = async () =>
+      this.exchangeGrantToken(agentId, {
+        subject_token: options.signer
+          ? await createKeyAssertion(options.signer, { baseUrl: this.origin, agentId })
+          : await options.subjectToken(),
+        subject_token_type: options.subjectTokenType,
+        grant_id: options.grantId,
+      });
+    return this.withGrantAuth({
+      kind: "session",
+      session: new GrantSession(exchange, refreshBefore * 1000),
+    });
+  }
+
+  /**
+   * A client that signs every delegated call with the key of a `public_key` grant and sends the
+   * proof as `X-Grant-Proof`, so no bearer token exists anywhere. `grantId` is the ID returned when
+   * the grant was issued. Each attempt, a retry included, signs a new proof (`signer` runs once
+   * per attempt: a cloud KMS bills per signature, so prefer {@link forGrantSession} at high
+   * rates) and repeats the same `Idempotency-Key`. This client's `baseUrl` must be the URL the API
+   * publishes as `servers[0]`: the proof is addressed to it.
+   */
+  forGrantProof(options: { grantId: string; signer: WorkloadSigner }): AgentApi {
+    assertGrantId(options.grantId);
+    return this.withGrantAuth({ kind: "proof", grantId: options.grantId, signer: options.signer });
+  }
+
+  private withGrantAuth(auth: GrantAuth): AgentApi {
+    const { grantToken: _, ...rest } = this.options;
+    const client = new AgentApi({ ...rest, maxResponseBytes: this.maxResponseBytes });
+    client.grantAuth = auth;
+    return client;
   }
 
   // ------------------------------------------------------------------------------ owner intents
@@ -369,6 +555,31 @@ export class AgentApi {
         ...options,
       })
     ).data;
+  }
+
+  /**
+   * Trades a workload's identity token (an `oidc` grant) or a key assertion (a `public_key`
+   * grant) for an `ngs_…` session token, which goes in `X-Grant-Token`. `forGrantSession` does
+   * this and renews the session for you. `subject_token_type` defaults to `jwt`; `grant_id` is
+   * needed only when several live grants accept the token (`grant_ambiguous`).
+   */
+  exchangeGrantToken(
+    agentId: string,
+    request: Pick<GrantTokenExchangeRequest, "subject_token" | "grant_id"> & {
+      subject_token_type?: SubjectTokenType;
+    },
+    options: RequestOptions = {},
+  ): Promise<GrantTokenExchangeResponse> {
+    return this.call(endpoints.exchangeGrantToken, {
+      params: { agent_id: agentId },
+      body: {
+        grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+        subject_token: request.subject_token,
+        subject_token_type: request.subject_token_type ?? "urn:ietf:params:oauth:token-type:jwt",
+        ...(request.grant_id === undefined ? {} : { grant_id: request.grant_id }),
+      } satisfies GrantTokenExchangeRequest,
+      ...options,
+    });
   }
 
   /** Executions the timelock holds, earliest release first; follow `next_cursor` for more. */

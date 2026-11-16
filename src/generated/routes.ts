@@ -26,6 +26,7 @@ export const endpoints = {
   getPolicy: { operationId: "getPolicy", method: "get", path: "/v1/agents/{agent_id}/policy" },
   getPolicyHistory: { operationId: "getPolicyHistory", method: "get", path: "/v1/agents/{agent_id}/policy/history" },
   listGrants: { operationId: "listGrants", method: "get", path: "/v1/agents/{agent_id}/grants" },
+  exchangeGrantToken: { operationId: "exchangeGrantToken", method: "post", path: "/v1/agents/{agent_id}/grants/token" },
   listScheduledExecutions: { operationId: "listScheduledExecutions", method: "get", path: "/v1/agents/{agent_id}/executions/scheduled" },
   getContainment: { operationId: "getContainment", method: "get", path: "/v1/agents/{agent_id}/containment" },
   listApprovals: { operationId: "listApprovals", method: "get", path: "/v1/agents/{agent_id}/approvals" },

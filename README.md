@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/npm/l/@near-intents-agent-api/sdk)](LICENSE)
 ![node](https://img.shields.io/node/v/@near-intents-agent-api/sdk)
 
-[Install](#install) · [How it fits](#how-it-fits-together) · [Create an agent](#create-an-agent) · [Let an agent act](#let-an-agent-act) · [Errors](#errors) · [Methods](#methods)
+[Install](#install) · [How it fits](#how-it-fits-together) · [Create an agent](#create-an-agent) · [Let an agent act](#let-an-agent-act) · [Workload identity](#workload-identity) · [Errors](#errors) · [Methods](#methods)
 
 </div>
 
@@ -414,6 +414,92 @@ its deadline. A refused payload never reaches the wallet provider; a retry is ju
 `nativeSolanaSignTransfer` signs one SOL or SPL transfer to a `recipient` that `destinations`
 allows, under `native.solana.sign_transfer`.
 
+## Workload identity
+
+A grant token (`ngt_…`) is a long-lived secret. If the agent runs where a platform already vouches
+for it (GitHub Actions, Google Cloud, AWS, Kubernetes, Vercel, …) or where it can keep a private
+key that never leaves it, the owner can bind the grant to that identity instead, and nothing
+long-lived sits on the workload. The owner signs the binding as the grant's `credential`:
+
+- `{ type: "oidc", issuer, claims }`: tokens from a platform's OIDC issuer that carry the pinned
+  claims. Which issuers and claims are accepted is in the API's `docs/workload-identity.md`.
+- `{ type: "public_key", jwk }`: an Ed25519 or P-256 key.
+
+**OIDC.** Ask your platform for a token whose audience is `oidcGrantAudience(baseUrl, agentId)`
+(for Microsoft Entra ID, the audience the grant names). `forGrantSession` exchanges it for a
+15-minute `ngs_…` session on the first delegated call, keeps it and exchanges again a minute before
+it ends; concurrent calls share one exchange, and the old session keeps serving if that exchange
+fails early. A grant holds at most 100 live sessions, so keep one client per grant and reuse it:
+a client created per invocation in a serverless function burns a session each time. If the API
+refuses a session with `agent_grant_required` (the grant was revoked or replaced), that call
+throws, is not repeated, and the next call exchanges again.
+
+```ts
+import { DEFAULT_BASE_URL, oidcGrantAudience } from "@near-intents-agent-api/sdk";
+
+const audience = oidcGrantAudience(DEFAULT_BASE_URL, agentId); // pass it to your platform
+
+await api.generateIntent({
+  type: "grant_issue",
+  agent_id: agentId,
+  label: "CI deploy bot",
+  credential: {
+    type: "oidc",
+    issuer: "https://token.actions.githubusercontent.com",
+    claims: { repository_owner_id: "…", repository_id: "…", environment: "production" },
+  },
+  expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+});
+// The owner signs it, as in "Create an agent".
+
+const bot = api.forGrantSession(agentId, {
+  // Called for every exchange: read the platform's token again, do not cache it.
+  subjectToken: () => requestPlatformToken(audience),
+});
+await bot.transfer(agentId, { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" });
+```
+
+**A key the workload holds.** Generate it where it will live, give the owner `publicJwk` to sign,
+and keep `privateJwk` there:
+
+```ts
+import { createWorkloadKey, localJwkSigner } from "@near-intents-agent-api/sdk";
+
+const { privateJwk, publicJwk } = createWorkloadKey("Ed25519"); // or "P-256"
+await api.generateIntent({
+  type: "grant_issue",
+  agent_id: agentId,
+  label: "Server",
+  credential: { type: "public_key", jwk: publicJwk },
+  expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+});
+// The owner signs it and your backend submits it, as in "Create an agent". The issued grant's ID
+// is `details.grant.grant_id` of the submitted intent's status, and `api.listGrants(agentId)` lists it.
+
+const signer = localJwkSigner(privateJwk);
+const viaSession = api.forGrantSession(agentId, { signer }); // signs the exchange assertions itself
+```
+
+**Sign every request.** A `public_key` grant can skip the session: `forGrantProof` sends an
+`X-Grant-Proof` that the key signs for each request (its grant, method, URL, exact body and
+`Idempotency-Key`), so no bearer token exists at all. Every attempt signs a new proof, and a retry
+keeps the same `idempotencyKey`. Pass the `grantId` of the issued grant (`listGrants`) and keep it fixed
+for retries.
+
+```ts
+const strict = api.forGrantProof({ grantId, signer });
+await strict.transfer(agentId, { asset: "nep141:wrap.near", amount: "1", recipient: "bob.near" });
+```
+
+A key in a cloud KMS or HSM works the same: give `signer` your own `{ publicJwk, sign }`, where
+`sign(signingInput)` returns the 64-byte JWS signature (for P-256, `r || s`, not the DER a KMS
+returns). It runs once per proof, so for a KMS that bills per signature and sends many requests,
+prefer `forGrantSession({ signer })`: one signature then covers a session.
+
+`baseUrl` must be the URL the API publishes as `servers[0]` (`https://api.agentsonintents.com` on
+the hosted API): audiences are built from it, and an alias that reaches the same host does not
+match. Never both headers: a client sends a session token or a proof, not both.
+
 ## Change the rules
 
 A policy change is one owner signature over the complete new policy. Read it, edit it, keep the
@@ -728,7 +814,7 @@ it too.
 |---|---|---|
 | `apiKey` | required | Your partner API key from the partner portal, as an opaque non-empty string. Backend only. |
 | `baseUrl` | `https://api.agentsonintents.com` | HTTPS origin; HTTP allowed for `localhost` |
-| `grantToken` | none | Prefer `api.forGrant(token)`, which returns a separate client per grant |
+| `grantToken` | none | A grant (`ngt_…`) or session (`ngs_…`) token. Prefer `api.forGrant(token)`, which returns a separate client per grant |
 | `timeoutMs` | 150 s for swap, placeLimitOrder, withdraw, transfer, shield, unshield; 65 s otherwise | |
 | `maxResponseBytes` | 8 MiB | Checked before JSON parsing, including errors |
 | `fetch` | global `fetch` | For tests or instrumentation |
@@ -741,13 +827,13 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 |---|---|
 | Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof`, `getReceipt`, `listReceipts` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
-| Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
+| Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `exchangeGrantToken`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield` (deprecated: always refused), `cancelLimitOrder`, `cancelAllLimitOrders` |
 | Limit order reads | `listLimitOrders`, `getLimitOrder` |
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `verifyReceipt`, `verifyPaymentReceipt`, `logTileReader` (errors: `ReceiptNotCoveredError`, `LogUnavailableError`) |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `forGrantSession`, `forGrantProof`, `createWorkloadKey`, `localJwkSigner`, `jwkThumbprintUri`, `oidcGrantAudience`, `createKeyAssertion`, `createGrantProof`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `verifyReceipt`, `verifyPaymentReceipt`, `logTileReader` (errors: `ReceiptNotCoveredError`, `LogUnavailableError`) |
 
 `getPartnerQuota()` reports how many agents you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,
