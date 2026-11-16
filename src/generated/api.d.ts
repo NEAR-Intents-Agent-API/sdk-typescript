@@ -262,6 +262,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/grants/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a workload identity token or key assertion for a grant session token
+         * @description Workload identity federation for `oidc` and `public_key` grants (RFC 8693 semantics, JSON body). Send the workload's short-lived JWT as `subject_token`. The API key is required here as everywhere: it carries the partner's rate limits and revocation. An OIDC identity token must come from the issuer the grant names, verify under that issuer's keys (or the keys the owner signed into the grant), carry the audience it was signed with (`owner_message.credential.audience`), live no longer than its issuer allows (an hour for GitHub, Google and AWS; 12 hours for Vercel; a day for GitLab CI, Kubernetes and Entra ID) and match every pinned claim exactly. A key assertion must be signed by the grant's key (EdDSA for Ed25519, ES256 for P-256) with `iss` and `sub` set to the key's RFC 9278 thumbprint URI, `aud` set to this endpoint's URL, a unique `jti`, and `exp` at most five minutes after `iat`; each assertion exchanges once. The answer is an `ngs_…` session token that goes in `X-Grant-Token` like a grant token, for 15 minutes by default (`GRANT_SESSION_TTL_MS`, at most 60) and never past the grant's expiry. Revoking the grant, an owner change or the grant's expiry ends every session at once. Every refusal of the token itself reads `subject_token_invalid`, whatever the cause, and so does a token whose issuer (or an assertion whose key) no live grant on the agent names: nothing is fetched to verify it. A token carrying none of the audiences its issuer's live grants name fails verification and reads `subject_token_invalid`; a verified identity token that no live grant accepts, by its pinned claims or its audience, reads `agent_grant_required`.
+         */
+        post: operations["exchangeGrantToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents/{agent_id}/executions/scheduled": {
         parameters: {
             query?: never;
@@ -378,7 +398,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description Swaps on the confidential balance; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap` and `confidential`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Swaps on the confidential balance; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap` and `confidential`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["swap"];
         delete?: never;
@@ -402,7 +422,7 @@ export interface paths {
         put?: never;
         /**
          * Place a resting limit order
-         * @description Places a limit order on the agent's confidential balance and funds it in full; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A `sell` spends `quantity` of `base_asset`; a `buy` spends the `quote_asset` that `quantity` costs at `price`, rounded up. The order rests until it fills, is cancelled or reaches `deadline` (default and maximum seven days); proceeds and refunds return to the balance that funded it. A live order requires `X-Grant-Token` for a live grant, and the account policy must allow `limit_order` and `confidential`. It then runs through the same rules as a swap on the asset it spends: assets, per-asset limits, actions per hour, the USD budget (charged on the spent value when the order is placed, and not given back when it is cancelled), `timelock_ms`, `schedule` and `owner_approval`. `destinations` does not apply. Its price is judged against the market when it is placed (and again when a timelock or approval releases it): a sell at most `limit_order.max_deviation_bps` (100 when omitted) below the base asset's USD price over the quote asset's, a buy at most that far above, or it is refused with `policy_price_deviation_exceeded`; with no fresh price for either asset it is refused with `market_price_unavailable`. A timelocked order whose release finds no fresh price waits and is released again for a few minutes before it fails with `market_price_unavailable`; one priced outside the bound at release fails at once. An owner's approve vote refused for the price releases nothing: the order stays held (see `owner_approval`). A better price than the market is not limited. The order must be worth at least 0.1 USD (`amount_too_low`); an order whose spent asset has no fresh USD price skips this check, and the provider applies its own minimum. `SUCCESS` means the order is funded and resting, not filled: `details.order_id` names it, and the limit-orders reads below follow its fills. 1Click adds its own app fee to every order (`app_fees` on the order), which is not an API fee. With `dry: true` it needs only the API key (no grant, no `Idempotency-Key`), places no order and returns `spend` (USD value and budget left), `quote` (what the order spends and what a full fill delivers) and `warnings` listing each rule a live order would fail under its code. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Places a limit order on the agent's confidential balance and funds it in full; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A `sell` spends `quantity` of `base_asset`; a `buy` spends the `quote_asset` that `quantity` costs at `price`, rounded up. The order rests until it fills, is cancelled or reaches `deadline` (default and maximum seven days); proceeds and refunds return to the balance that funded it. A live order requires `X-Grant-Token` for a live grant, and the account policy must allow `limit_order` and `confidential`. It then runs through the same rules as a swap on the asset it spends: assets, per-asset limits, actions per hour, the USD budget (charged on the spent value when the order is placed, and not given back when it is cancelled), `timelock_ms`, `schedule` and `owner_approval`. `destinations` does not apply. Its price is judged against the market when it is placed (and again when a timelock or approval releases it): a sell at most `limit_order.max_deviation_bps` (100 when omitted) below the base asset's USD price over the quote asset's, a buy at most that far above, or it is refused with `policy_price_deviation_exceeded`; with no fresh price for either asset it is refused with `market_price_unavailable`. A timelocked order whose release finds no fresh price waits and is released again for a few minutes before it fails with `market_price_unavailable`; one priced outside the bound at release fails at once. An owner's approve vote refused for the price releases nothing: the order stays held (see `owner_approval`). A better price than the market is not limited. The order must be worth at least 0.1 USD (`amount_too_low`); an order whose spent asset has no fresh USD price skips this check, and the provider applies its own minimum. `SUCCESS` means the order is funded and resting, not filled: `details.order_id` names it, and the limit-orders reads below follow its fills. 1Click adds its own app fee to every order (`app_fees` on the order), which is not an API fee. With `dry: true` it needs only the API key (no grant, no `Idempotency-Key`), places no order and returns `spend` (USD value and budget left), `quote` (what the order spends and what a full fill delivers) and `warnings` listing each rule a live order would fail under its code. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["placeLimitOrder"];
         delete?: never;
@@ -442,7 +462,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel one limit order
-         * @description Cancels a resting order; what is unfilled is refunded to the balance that funded it, the legacy public balance for an order recorded there. Requires `X-Grant-Token` for a live grant. Cancelling spends no budget and waits for no timelock, schedule or approval, and it works while the agent is frozen and after the policy stops allowing `limit_order`: the owner's rules never trap an order. Only an archived or deleted agent is refused. The USD budget charged when the order was placed is not given back. The reply is the order as the provider reports it with every field optional, and `{}` when the reply carries none: read the order for its state.
+         * @description Cancels a resting order; what is unfilled is refunded to the balance that funded it, the legacy public balance for an order recorded there. Requires `X-Grant-Token` for a live grant. Cancelling spends no budget and waits for no timelock, schedule or approval, and it works while the agent is frozen and after the policy stops allowing `limit_order`: the owner's rules never trap an order. Only an archived or deleted agent is refused. The USD budget charged when the order was placed is not given back. The reply is the order as the provider reports it with every field optional, and `{}` when the reply carries none: read the order for its state. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["cancelLimitOrder"];
         delete?: never;
@@ -462,7 +482,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel all of the agent's limit orders
-         * @description Cancels up to 50 resting orders a call; repeat until `complete` is true. Requires `X-Grant-Token` for a live grant and has the same exemptions as cancelling one order: it works while frozen and after the policy drops `limit_order`.
+         * @description Cancels up to 50 resting orders a call; repeat until `complete` is true. Requires `X-Grant-Token` for a live grant and has the same exemptions as cancelling one order: it works while frozen and after the policy drops `limit_order`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["cancelAllLimitOrders"];
         delete?: never;
@@ -482,7 +502,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -502,7 +522,7 @@ export interface paths {
         put?: never;
         /**
          * Transfer an asset to another NEAR Intents account
-         * @description Transfers from the agent's confidential balance to the recipient's confidential balance; `confidential: false` is refused with `public_balance_exit_only` before any provider call. Requires `X-Grant-Token` for a live grant; the account policy must allow `transfer` and `confidential`, and its destination rule the recipient. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Transfers from the agent's confidential balance to the recipient's confidential balance; `confidential: false` is refused with `public_balance_exit_only` before any provider call. Requires `X-Grant-Token` for a live grant; the account policy must allow `transfer` and `confidential`, and its destination rule the recipient. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["transfer"];
         delete?: never;
@@ -522,7 +542,7 @@ export interface paths {
         put?: never;
         /**
          * Move the legacy public balance to the confidential balance
-         * @description Moves an amount from the agent's legacy public balance to its confidential balance. With a withdrawal (`confidential: false`), it is the only way to empty the public balance; nothing moves funds back. Requires `X-Grant-Token` for a live grant, and the account policy must have `confidential`: an agent whose stored policy has it off needs an owner-signed `policy_update` that turns it on first. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Moves an amount from the agent's legacy public balance to its confidential balance. With a withdrawal (`confidential: false`), it is the only way to empty the public balance; nothing moves funds back. Requires `X-Grant-Token` for a live grant, and the account policy must have `confidential`: an agent whose stored policy has it off needs an owner-signed `policy_update` that turns it on first. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["shield"];
         delete?: never;
@@ -542,7 +562,7 @@ export interface paths {
         put?: never;
         /**
          * Move a confidential balance back to public
-         * @description Refused. Every request, whatever its body (`dry` included), is answered 400 `public_balance_exit_only` before anything is read or sent. The agent's account is its confidential balance, and the legacy public balance can only be emptied: shield moves it to the confidential balance and a withdrawal with `confidential: false` pays it out. Unshields recorded earlier still read and settle through `GET /v1/status` and history. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet.
+         * @description Refused. Every request, whatever its body (`dry` included), is answered 400 `public_balance_exit_only` before anything is read or sent. The agent's account is its confidential balance, and the legacy public balance can only be emptied: shield moves it to the confidential balance and a withdrawal with `confidential: false` pays it out. Unshields recorded earlier still read and settle through `GET /v1/status` and history. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["unshield"];
         delete?: never;
@@ -582,7 +602,7 @@ export interface paths {
         put?: never;
         /**
          * Dispatch an UNCERTAIN execution that provably never reached the provider
-         * @description Only for executions with no provider reference and no dispatch commitment. `request` must equal the original body, `Idempotency-Key` the original key, and `X-Grant-Token` the token of the grant that admitted it.
+         * @description Only for executions with no provider reference and no dispatch commitment. `request` must equal the original body, `Idempotency-Key` the original key, and `X-Grant-Token` the token of the grant that admitted it. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["recover"];
         delete?: never;
@@ -602,7 +622,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a NEP-413 message with the agent's NEAR key
-         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `native.near.sign_message`. Takes what a dApp's `signMessage({ message, recipient, nonce })` takes: `message` (the text to sign, `encoding` `hex` signs the UTF-8 text the bytes decode to), the relying party's base64 32-byte `nonce` and `recipient`. Returns `near_account_id`, `public_key` and the base64 `signature` over the NEP-413 payload, which the API checks before it answers. `callbackUrl` is not supported: the provider signs without one. The relying party must still check `nonce`, `recipient` and `public_key` (a full-access key of `near_account_id`, once that account exists on chain). The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`. Recorded in history as type `native`, with the recipient.
+         * @description Requires `X-Grant-Token` for a live grant, and the account policy must list `recipient` in `native.near.sign_message`. Takes what a dApp's `signMessage({ message, recipient, nonce })` takes: `message` (the text to sign, `encoding` `hex` signs the UTF-8 text the bytes decode to), the relying party's base64 32-byte `nonce` and `recipient`. Returns `near_account_id`, `public_key` and the base64 `signature` over the NEP-413 payload, which the API checks before it answers. `callbackUrl` is not supported: the provider signs without one. The relying party must still check `nonce`, `recipient` and `public_key` (a full-access key of `near_account_id`, once that account exists on chain). The NEAR Intents contracts (`intents.near`, `intents.far`) are never recipients. Not delayed by `timelock_ms` or `schedule`. Recorded in history as type `native`, with the recipient. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeNearSignMessage"];
         delete?: never;
@@ -622,7 +642,7 @@ export interface paths {
         put?: never;
         /**
          * Send native NEAR from the agent's NEAR account
-         * @description Needs `native.near.transfer`. Sends from the agent's NEAR account (`wallet.near_account_id`), outside NEAR Intents. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. OutLayer still applies the policy's `assets` (wNEAR covers native NEAR), `limits` and `max_actions_per_hour`. A retry with the same `Idempotency-Key` returns the same request and never sends twice.
+         * @description Needs `native.near.transfer`. Sends from the agent's NEAR account (`wallet.near_account_id`), outside NEAR Intents. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. OutLayer still applies the policy's `assets` (wNEAR covers native NEAR), `limits` and `max_actions_per_hour`. A retry with the same `Idempotency-Key` returns the same request and never sends twice. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeNearTransfer"];
         delete?: never;
@@ -642,7 +662,7 @@ export interface paths {
         put?: never;
         /**
          * Call a NEAR contract from the agent's NEAR account
-         * @description Needs `receiver_id` listed in `native.near.call`. The NEAR Intents contracts are never callable (`native_contract_forbidden`). Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. A call that attaches no deposit sends no NEAR. Listing a token contract lets the agent send that token anywhere from its NEAR account. A retry with the same `Idempotency-Key` returns the same request and never calls twice.
+         * @description Needs `receiver_id` listed in `native.near.call`. The NEAR Intents contracts are never callable (`native_contract_forbidden`). Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen. The NEAR it sends must land where `destinations` allows, judged as a `withdraw` on chain `near` to the receiving account (`policy_destination_denied`); `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. A call that attaches no deposit sends no NEAR. Listing a token contract lets the agent send that token anywhere from its NEAR account. A retry with the same `Idempotency-Key` returns the same request and never calls twice. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeNearCall"];
         delete?: never;
@@ -662,7 +682,7 @@ export interface paths {
         put?: never;
         /**
          * Sign EIP-712 typed data with the agent's EVM key
-         * @description Needs the typed data's `domain` listed in `native.evm.sign_typed_data`: every field the domain carries (name, version, chainId, verifyingContract, salt) must match one listed entry exactly, and an extra or missing field is another domain. A listed entry with `primary_types` signs only those message types, so `primaryType` must be one of them; without it any message type is signed. That narrows the kind of message, never its fields: destinations and amounts inside the message are not checked. `types.EIP712Domain` may be omitted, and the API then derives it; when sent, it must declare exactly the domain's fields in EIP-712 order with their standard types, since the signed digest covers only declared fields. `message` is at most 65536 bytes as canonical JSON. The record (status and history, type `native`) carries `details.domain`, the matched domain, and `details.message_json`, the signed message as canonical JSON. Signs as `wallet.evm_account_id`, the same address on every EVM chain. Typed data can authorize transfers (EIP-3009) and approvals (EIP-2612 Permit) of anything that address holds. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs the typed data's `domain` listed in `native.evm.sign_typed_data`: every field the domain carries (name, version, chainId, verifyingContract, salt) must match one listed entry exactly, and an extra or missing field is another domain. A listed entry with `primary_types` signs only those message types, so `primaryType` must be one of them; without it any message type is signed. That narrows the kind of message, never its fields: destinations and amounts inside the message are not checked. `types.EIP712Domain` may be omitted, and the API then derives it; when sent, it must declare exactly the domain's fields in EIP-712 order with their standard types, since the signed digest covers only declared fields. `message` is at most 65536 bytes as canonical JSON. The record (status and history, type `native`) carries `details.domain`, the matched domain, and `details.message_json`, the signed message as canonical JSON. Signs as `wallet.evm_account_id`, the same address on every EVM chain. Typed data can authorize transfers (EIP-3009) and approvals (EIP-2612 Permit) of anything that address holds. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignTypedData"];
         delete?: never;
@@ -682,7 +702,7 @@ export interface paths {
         put?: never;
         /**
          * Sign an EIP-191 message with the agent's EVM key
-         * @description Needs `native.evm.sign_message`. Text or bytes that are a NEAR Intents payload (they hold `verifying_contract`, or `signer_id` with `intents`) are refused with `intents_payload_use_sign_intent`: sign those with `sign-intent`. A deployment that sets `SIGN_MESSAGE_INTENTS_ENABLED` signs them here instead, with none of `sign-intent`'s checks, so this switch then amounts to full control of the key's NEAR Intents account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.evm.sign_message`. Text or bytes that are a NEAR Intents payload (they hold `verifying_contract`, or `signer_id` with `intents`) are refused with `intents_payload_use_sign_intent`: sign those with `sign-intent`. A deployment that sets `SIGN_MESSAGE_INTENTS_ENABLED` signs them here instead, with none of `sign-intent`'s checks, so this switch then amounts to full control of the key's NEAR Intents account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignMessage"];
         delete?: never;
@@ -702,7 +722,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a NEAR Intents transfer payload with the agent's EVM key
-         * @description Needs `native.evm.sign_intent`; `sign_message` does not open it. Signs `payload` as an ERC-191 message with the key behind `wallet.evm_account_id`, which, as a lowercase `0x` address (the spelling NEAR Intents uses), must be the payload `signer_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "erc191", payload, signature }` with the signature as `secp256k1:` and base58: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.evm.sign_intent`; `sign_message` does not open it. Signs `payload` as an ERC-191 message with the key behind `wallet.evm_account_id`, which, as a lowercase `0x` address (the spelling NEAR Intents uses), must be the payload `signer_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "erc191", payload, signature }` with the signature as `secp256k1:` and base58: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignIntent"];
         delete?: never;
@@ -722,7 +742,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a serialized EVM transaction with the agent's EVM key
-         * @description Needs `native.evm.sign_transaction`, which gives full control of the EVM address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.evm.sign_transaction`, which gives full control of the EVM address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignTransaction"];
         delete?: never;
@@ -742,7 +762,7 @@ export interface paths {
         put?: never;
         /**
          * Sign in with Solana to a listed domain
-         * @description Needs `domain` listed in `native.solana.sign_in`. Takes the fields of a wallet's Sign-In-With-Solana `signIn` input and writes the message itself, as the wallet standard's `createSignInMessageText` does, with `wallet.solana_account_id` as the address: `domain`, `statement` (one line of printable ASCII), `uri` (an `https` URI on `domain`), `version` (`1`), `chain_id` (`mainnet` or `solana:mainnet`), `nonce` (8 to 64 letters and digits), `issued_at` (RFC 3339 UTC ending in `Z`, within 300 seconds of now) and `expiration_time` (required, still ahead, at most 10 minutes after `issued_at`). `not_before`, `request_id` and `resources` are not taken. The message always ends with a time the API checked, so the signature serves only as this login: never as a NEAR Intents payload, nor as a passkey (WebAuthn) signature for the key's NEAR Intents account. Answers the signature and `signed_message`, the exact text signed: hand the relying party its UTF-8 bytes, the base58 `signature` and `account_id`. The provider's signature is checked against the agent's key and that text before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Recorded in history as type `native`, with the domain as `details.target`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `domain` listed in `native.solana.sign_in`. Takes the fields of a wallet's Sign-In-With-Solana `signIn` input and writes the message itself, as the wallet standard's `createSignInMessageText` does, with `wallet.solana_account_id` as the address: `domain`, `statement` (one line of printable ASCII), `uri` (an `https` URI on `domain`), `version` (`1`), `chain_id` (`mainnet` or `solana:mainnet`), `nonce` (8 to 64 letters and digits), `issued_at` (RFC 3339 UTC ending in `Z`, within 300 seconds of now) and `expiration_time` (required, still ahead, at most 10 minutes after `issued_at`). `not_before`, `request_id` and `resources` are not taken. The message always ends with a time the API checked, so the signature serves only as this login: never as a NEAR Intents payload, nor as a passkey (WebAuthn) signature for the key's NEAR Intents account. Answers the signature and `signed_message`, the exact text signed: hand the relying party its UTF-8 bytes, the base58 `signature` and `account_id`. The provider's signature is checked against the agent's key and that text before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Recorded in history as type `native`, with the domain as `details.target`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignIn"];
         delete?: never;
@@ -762,7 +782,7 @@ export interface paths {
         put?: never;
         /**
          * Sign an off-chain message with the agent's Solana key
-         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused (`validation_failed`), and so are bytes that are a NEAR Intents payload (`intents_payload_use_sign_intent`, unless the deployment sets `SIGN_MESSAGE_INTENTS_ENABLED`): sign those with `sign-intent`. Any other bytes are signed as sent. The check reads the bytes, and a 32-byte digest that its standard hashes first cannot be read, so the other signature standards NEAR Intents accepts can be signed here: this switch amounts to full control of this key's NEAR Intents account (the lowercase hex of the public key behind `wallet.solana_account_id`), without the receiver checks of `sign-intent`. Give it only to an agent trusted with that account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused (`validation_failed`), and so are bytes that are a NEAR Intents payload (`intents_payload_use_sign_intent`, unless the deployment sets `SIGN_MESSAGE_INTENTS_ENABLED`): sign those with `sign-intent`. Any other bytes are signed as sent. The check reads the bytes, and a 32-byte digest that its standard hashes first cannot be read, so the other signature standards NEAR Intents accepts can be signed here: this switch amounts to full control of this key's NEAR Intents account (the lowercase hex of the public key behind `wallet.solana_account_id`), without the receiver checks of `sign-intent`. Give it only to an agent trusted with that account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignMessage"];
         delete?: never;
@@ -782,7 +802,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a NEAR Intents transfer payload with the agent's Solana key
-         * @description Needs `native.solana.sign_intent`; `sign_message` does not open it. Signs the UTF-8 bytes of `payload` with the agent's Ed25519 key. The payload's `signer_id` must be that key's NEAR Intents account, the lowercase hex of the 32-byte key behind `wallet.solana_account_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "raw_ed25519", payload, public_key, signature }` with both keys in `ed25519:` and base58 form: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.solana.sign_intent`; `sign_message` does not open it. Signs the UTF-8 bytes of `payload` with the agent's Ed25519 key. The payload's `signer_id` must be that key's NEAR Intents account, the lowercase hex of the 32-byte key behind `wallet.solana_account_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "raw_ed25519", payload, public_key, signature }` with both keys in `ed25519:` and base58 form: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignIntent"];
         delete?: never;
@@ -802,7 +822,7 @@ export interface paths {
         put?: never;
         /**
          * Sign one SOL or token transfer to a listed destination with the agent's Solana key
-         * @description Needs `native.solana.sign_transfer`; the full-control `sign_transaction` is not needed. Reads `unsigned_tx`, a base64 legacy or version 0 transaction message, before anything is signed, and signs it only as one transfer: SOL by a System Program `Transfer` to `recipient`, or one SPL Token or Token-2022 `TransferChecked` into the associated token account of `recipient`, with the agent as its authority. Besides the transfer the message may hold one associated-token-account `CreateIdempotent` for that account, paid by the agent, and a compute unit limit and price whose priority fee is at most 1,000,000 lamports; nothing else. The agent (`wallet.solana_account_id`) must be the only signer and pay the fee, every account must be in the message (no address lookup tables) and no account may appear twice. Anything else is refused with 403 `solana_transaction_forbidden`, the reason in `detail`. `recipient` must be a destination the policy allows, judged as a `withdraw` on chain `sol` with no memo (`policy_destination_denied`). Amounts, `assets`, `limits` and `budget` are not checked yet: this stops transfers to arbitrary recipients, but does not yet limit how much is sent. A durable nonce is not a transfer, so a signed transaction lands only while its blockhash is recent. Nothing is broadcast; the caller sends the signed transaction. The provider's signature is checked against the agent's key and the message before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. The record carries `recipient` as `details.target`, the amount as `details.amount` and the transfer as read in `details.message_json`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.solana.sign_transfer`; the full-control `sign_transaction` is not needed. Reads `unsigned_tx`, a base64 legacy or version 0 transaction message, before anything is signed, and signs it only as one transfer: SOL by a System Program `Transfer` to `recipient`, or one SPL Token or Token-2022 `TransferChecked` into the associated token account of `recipient`, with the agent as its authority. Besides the transfer the message may hold one associated-token-account `CreateIdempotent` for that account, paid by the agent, and a compute unit limit and price whose priority fee is at most 1,000,000 lamports; nothing else. The agent (`wallet.solana_account_id`) must be the only signer and pay the fee, every account must be in the message (no address lookup tables) and no account may appear twice. Anything else is refused with 403 `solana_transaction_forbidden`, the reason in `detail`. `recipient` must be a destination the policy allows, judged as a `withdraw` on chain `sol` with no memo (`policy_destination_denied`). Amounts, `assets`, `limits` and `budget` are not checked yet: this stops transfers to arbitrary recipients, but does not yet limit how much is sent. A durable nonce is not a transfer, so a signed transaction lands only while its blockhash is recent. Nothing is broadcast; the caller sends the signed transaction. The provider's signature is checked against the agent's key and the message before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. The record carries `recipient` as `details.target`, the amount as `details.amount` and the transfer as read in `details.message_json`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignTransfer"];
         delete?: never;
@@ -822,7 +842,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a Solana transaction message with the agent's Solana key
-         * @description Needs `native.solana.sign_transaction`, which gives full control of the Solana address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`.
+         * @description Needs `native.solana.sign_transaction`, which gives full control of the Solana address. Nothing is broadcast; the caller sends the signed transaction. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignTransaction"];
         delete?: never;
@@ -1685,6 +1705,8 @@ export interface components {
             revoked_at: string | null;
             revoked_reason: string | null;
             owner_epoch: number;
+            /** @enum {string} */
+            credential_type: "token" | "oidc" | "public_key";
             owner_message: {
                 /** @constant */
                 domain: "near-intents-agent-api.agent-grant.v6";
@@ -1693,7 +1715,68 @@ export interface components {
                 agent_id: string;
                 wallet_id: string;
                 label: string;
-                credential: string;
+                credential: string | {
+                    /** @constant */
+                    type: "oidc";
+                    issuer: string & (unknown & unknown);
+                    audience: string;
+                    claims: {
+                        [key: string]: string;
+                    };
+                    jwks?: {
+                        keys: ({
+                            /** @constant */
+                            kty: "RSA";
+                            n: string;
+                            e: string;
+                            /** @enum {string} */
+                            alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        } | {
+                            /** @constant */
+                            kty: "EC";
+                            /** @enum {string} */
+                            crv: "P-256" | "P-384";
+                            x: string;
+                            y: string;
+                            /** @enum {string} */
+                            alg?: "ES256" | "ES384";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        } | {
+                            /** @constant */
+                            kty: "OKP";
+                            /** @constant */
+                            crv: "Ed25519";
+                            x: string;
+                            /** @enum {string} */
+                            alg?: "EdDSA" | "Ed25519";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        })[];
+                    };
+                } | {
+                    /** @constant */
+                    type: "public_key";
+                    jwk: {
+                        /** @constant */
+                        kty: "OKP";
+                        /** @constant */
+                        crv: "Ed25519";
+                        x: string;
+                    } | {
+                        /** @constant */
+                        kty: "EC";
+                        /** @constant */
+                        crv: "P-256";
+                        x: string;
+                        y: string;
+                    };
+                };
                 /** @constant */
                 network: "mainnet";
                 issued_at_ms: number;
@@ -1905,7 +1988,68 @@ export interface operations {
                     type: "grant_issue";
                     agent_id: string;
                     label: string & (unknown & unknown);
-                    credential: string;
+                    credential: string | {
+                        /** @constant */
+                        type: "oidc";
+                        issuer: string & (unknown & unknown);
+                        claims: {
+                            [key: string]: string;
+                        };
+                        jwks?: {
+                            keys: ({
+                                /** @constant */
+                                kty: "RSA";
+                                n: string;
+                                e: string;
+                                /** @enum {string} */
+                                alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            } | {
+                                /** @constant */
+                                kty: "EC";
+                                /** @enum {string} */
+                                crv: "P-256" | "P-384";
+                                x: string;
+                                y: string;
+                                /** @enum {string} */
+                                alg?: "ES256" | "ES384";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            } | {
+                                /** @constant */
+                                kty: "OKP";
+                                /** @constant */
+                                crv: "Ed25519";
+                                x: string;
+                                /** @enum {string} */
+                                alg?: "EdDSA" | "Ed25519";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            })[];
+                        };
+                        audience?: string;
+                    } | {
+                        /** @constant */
+                        type: "public_key";
+                        jwk: {
+                            /** @constant */
+                            kty: "OKP";
+                            /** @constant */
+                            crv: "Ed25519";
+                            x: string;
+                        } | {
+                            /** @constant */
+                            kty: "EC";
+                            /** @constant */
+                            crv: "P-256";
+                            x: string;
+                            y: string;
+                        };
+                    };
                     /** Format: date-time */
                     expires_at: string;
                 } | {
@@ -3720,6 +3864,122 @@ export interface operations {
             };
         };
     };
+    exchangeGrantToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange";
+                    subject_token: string;
+                    /** @enum {string} */
+                    subject_token_type: "urn:ietf:params:oauth:token-type:jwt" | "urn:ietf:params:oauth:token-type:id_token";
+                    grant_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access_token: string;
+                        /** @constant */
+                        issued_token_type: "urn:ietf:params:oauth:token-type:access_token";
+                        /** @constant */
+                        token_type: "N_A";
+                        expires_in: number;
+                        /** Format: date-time */
+                        expires_at: string;
+                        grant_id: string;
+                        label: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
     listScheduledExecutions: {
         parameters: {
             query?: {
@@ -3862,6 +4122,8 @@ export interface operations {
                                 issued_at: string;
                                 expires_at: string;
                                 revoked_at: string | null;
+                                /** @enum {string} */
+                                credential_type: "token" | "oidc" | "public_key";
                                 grant_record_current: boolean;
                                 findings: string[];
                             }[];

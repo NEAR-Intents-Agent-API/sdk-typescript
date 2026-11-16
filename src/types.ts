@@ -51,6 +51,8 @@ export type PolicyHistoryView = Success<"getPolicyHistory">;
 export type GrantView = Schemas["GrantView"];
 export type BudgetView = Schemas["BudgetView"];
 export type TimelockView = Schemas["TimelockView"];
+/** How a grant's holder proves itself: a grant `token`, an `oidc` identity or a `public_key`. */
+export type GrantCredentialType = GrantView["credential_type"];
 export type ApprovalView = Success<"getApproval">;
 export type ScheduledPage = Success<"listScheduledExecutions">;
 export type ScheduledExecutionView = ScheduledPage["data"][number];
@@ -64,6 +66,20 @@ export type GenerateIntentRequest = RequestBody<"generateIntent">;
 export type GenerateIntentResponse = Schemas["GenerateIntentResponse"];
 export type IntentType = GenerateIntentResponse["type"];
 export type SubmitIntentRequest = RequestBody<"submitIntent">;
+type GrantIssueRequest = Extract<GenerateIntentRequest, { type: "grant_issue" }>;
+/**
+ * The `credential` of a `grant_issue` intent, which the owner signs: the SHA-256 hex of a grant
+ * token, an `oidc` workload identity or a `public_key` workload key.
+ */
+export type GrantIssueCredential = GrantIssueRequest["credential"];
+/** `{ type: "oidc", issuer, claims, audience?, jwks? }`: a workload identity the API verifies. */
+export type OidcGrantCredential = Extract<GrantIssueCredential, { type: "oidc" }>;
+/** `{ type: "public_key", jwk }`: an Ed25519 or P-256 workload key that never leaves the workload. */
+export type PublicKeyGrantCredential = Extract<GrantIssueCredential, { type: "public_key" }>;
+/** An Ed25519 or P-256 public JWK. Private members are refused by the API. */
+export type GrantPublicKeyJwk = PublicKeyGrantCredential["jwk"];
+/** An issuer public key the owner signs into an `oidc` grant (`jwks`). */
+export type OidcSigningKey = NonNullable<OidcGrantCredential["jwks"]>["keys"][number];
 
 /** Which signing standards a given owner action produces (the wallet must sign `intent.payload`). */
 export type GenerateIntentResponseOf<T extends IntentType> = T extends IntentType
@@ -84,6 +100,14 @@ export type GenerateIntentResponseOf<T extends IntentType> = T extends IntentTyp
       >;
     }
   : never;
+
+// ---- Workload identity
+/** The RFC 8693 token exchange body of `POST /v1/agents/{agent_id}/grants/token`. */
+export type GrantTokenExchangeRequest = RequestBody<"exchangeGrantToken">;
+/** The `ngs_…` session token to send as `X-Grant-Token`, and when it ends. */
+export type GrantTokenExchangeResponse = Success<"exchangeGrantToken">;
+/** The JWT type of the subject token: `jwt` (default) or `id_token`. */
+export type SubjectTokenType = GrantTokenExchangeRequest["subject_token_type"];
 
 // ---- Executions
 export type StatusResponse = Schemas["StatusResponse"];

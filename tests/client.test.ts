@@ -146,7 +146,7 @@ test("a grant client sends its token only to delegated endpoints", async () => {
   assert.equal(grantCommitment(token), commitment);
   assert.match(token, /^ngt_[A-Za-z0-9_-]{43}$/);
   assert.notEqual(createGrantCredential().token, token);
-  assert.throws(() => api.forGrant("not-a-token"), /grantToken is not an ngt_ token/);
+  assert.throws(() => api.forGrant("not-a-token"), /grantToken is not an ngt_ or ngs_ token/);
 });
 
 test("limit orders: placement is a keyed grant write, the preview is keyless, reads and cancels are plain calls", async () => {
