@@ -7,12 +7,15 @@ import {
   type ApiErrorLayer,
   type BalanceEntry,
   createGrantCredential,
+  createWorkloadKey,
   DEFAULT_BASE_URL,
   type ExecutionDetails,
   type ExecutionType,
   grantCommitment,
   type LimitOrderRequest,
   type LimitOrderView,
+  localJwkSigner,
+  type OperationLookup,
   type PolicyAction,
   type QuoteResponse,
   type StatusResponseOf,
@@ -260,6 +263,97 @@ test("an operation proof is read from the agent's operation with the API key alo
   assert.equal(calls[0]?.headers.get("x-api-key"), apiKey);
   assert.equal(calls[0]?.headers.get("x-grant-token"), null);
   assert.equal(calls[0]?.headers.get("idempotency-key"), null);
+});
+
+test("an operation lookup sends the key as a query value with the API key alone and returns both lists", async () => {
+  const calls: { url: URL; headers: Headers; method: string | undefined }[] = [];
+  const body = {
+    data: [{ correlation_id: "op_newest", type: "withdraw" }, { correlation_id: "op_older" }],
+    retired: ["op_purged"],
+  };
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input, init) => {
+      calls.push({
+        url: new URL(String(input)),
+        headers: new Headers(init?.headers),
+        method: init?.method,
+      });
+      return Response.json(body);
+    },
+  });
+  const key = "lost:withdrawal.2026-11-17_#1";
+  const lookup: OperationLookup = await api.lookupOperations(agentId, key);
+  assert.deepEqual(lookup, body);
+  assert.equal(calls[0]?.method, "GET");
+  assert.equal(calls[0]?.url.pathname, `/v1/agents/${agentId}/operations`);
+  assert.equal(calls[0]?.url.searchParams.get("idempotency_key"), key);
+  assert.equal(calls[0]?.url.search, `?idempotency_key=${encodeURIComponent(key)}`);
+  assert.equal(calls[0]?.headers.get("x-api-key"), apiKey);
+  assert.equal(calls[0]?.headers.get("idempotency-key"), null);
+  assert.equal(calls[0]?.headers.get("x-grant-token"), null);
+  assert.equal(calls[0]?.headers.get("x-grant-proof"), null);
+  await api.lookupOperations("agent/with space", "plain-key-1");
+  assert.equal(calls[1]?.url.pathname, "/v1/agents/agent%2Fwith%20space/operations");
+});
+
+test("an operation lookup never carries a grant credential or signs a proof, whichever grant client sends it", async () => {
+  const headers: Headers[] = [];
+  const fetch: typeof globalThis.fetch = async (_input, init) => {
+    headers.push(new Headers(init?.headers));
+    return Response.json({ data: [], retired: [] });
+  };
+  const base = new AgentApi({ baseUrl: "https://api.test", apiKey, fetch });
+  const { token } = createGrantCredential();
+  const { privateJwk } = createWorkloadKey("Ed25519");
+  const signer = localJwkSigner(privateJwk);
+  const proof = base.forGrantProof({
+    grantId: "b".repeat(64),
+    signer: {
+      publicJwk: signer.publicJwk,
+      sign: () => assert.fail("a lookup must not ask the signer for a proof"),
+    },
+  });
+  const session = base.forGrantSession(agentId, { signer });
+  assert.deepEqual(await base.forGrant(token).lookupOperations(agentId, "grant-client-key"), {
+    data: [],
+    retired: [],
+  });
+  await proof.lookupOperations(agentId, "grant-client-key");
+  await session.lookupOperations(agentId, "grant-client-key");
+  assert.equal(headers.length, 3, "the session client exchanged nothing");
+  for (const sent of headers) {
+    assert.equal(sent.get("x-grant-token"), null);
+    assert.equal(sent.get("x-grant-proof"), null);
+    assert.equal(sent.get("idempotency-key"), null);
+  }
+});
+
+test("a refused operation lookup throws the API's error without a request key", async () => {
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async () =>
+      Response.json(
+        {
+          errors: [{ status: "400", code: "invalid_request", layer: "request", title: "Invalid" }],
+          meta: { request_id: "request-2" },
+        },
+        { status: 400 },
+      ),
+  });
+  await assert.rejects(api.lookupOperations(agentId, "short"), (error: unknown) => {
+    assert.ok(error instanceof AgentApiError);
+    assert.equal(error.status, 400);
+    assert.equal(error.code, "invalid_request");
+    assert.equal(
+      error.idempotencyKey,
+      undefined,
+      "the lookup key is a query value, not a request key",
+    );
+    return true;
+  });
 });
 
 test("client exposes JSON:API errors and handles non-JSON upstream failures", async () => {

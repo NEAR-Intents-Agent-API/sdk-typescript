@@ -1,16 +1,40 @@
 # Changelog
 
-## Unreleased
+## 0.9.3 (2026-11-17)
 
-Types regenerated from the API's approval-votes and storage-refusal change.
+Operation lookup by `Idempotency-Key` (near/near-intents-agent-api#182, answers #38). Types
+regenerated from API main (123d86bd). Additive: nothing a 0.9.2 caller does changes. The new
+method needs an API with #182.
 
+- New: `lookupOperations(agentId, idempotencyKey, options?)` recovers the correlation ids of a
+  request whose response was lost, without sending it again (`GET /v1/agents/{agent_id}/operations`,
+  API key only, no grant). It returns `OperationLookup`, `{ data, retired }`.
+  - `data` holds the retained operations the key admitted on the agent as `getHistory` reads
+    them, newest first, with no provider call. The same key under two grants names two operations.
+  - `retired` lists the correlation ids whose detail was purged after retention: the key was
+    admitted and never runs again.
+  - Empty lists are inconclusive: admission may be in progress, the request may have been refused
+    before recording, or the original grant's id may be unavailable. Only a replay under the same
+    key, body and grant settles it.
+  - The key is 8 to 128 characters of `A-Z a-z 0-9 . _ : -`; the API answers another shape with a
+    400. The SDK sends it as given.
 - Approvals (`listApprovals`, `getApproval`) carry `votes` with retained signed submissions,
-  oldest first. Each entry contains `{ voter, verdict, voted_at }`. The API records submissions
+  oldest first (near/near-intents-agent-api#181, SDK #43). Each entry contains `{ voter, verdict, voted_at }`. The API records submissions
   before sending them to the provider, so entries can include submissions the provider refused or
   never received. `approval.status` reports the provider's decision.
 - Live and dry withdrawals to a NEAR account without storage on the withdrawn token's contract
   return `recipient_storage_unregistered` (409). `invalid_address` covers malformed addresses and
-  missing accounts.
+  missing accounts (#181).
+- New error code `policy_too_large` (400, near/near-intents-agent-api#185): `generateIntent` refuses
+  a policy whose ciphertext is over 15,360 bytes before the owner signs, because the custody
+  contract cannot log it in one write. Allow fewer assets, per-asset limits or contracts.
+- The API now reads an agent's freeze state from the chain when it prepares a policy intent. An
+  unreachable chain fails with `provider_unavailable` (503, retryable); a missing policy record
+  with `provider_policy_unavailable` (503).
+- Provider outages read faster and more precisely (near/near-intents-agent-api#180). A 2xx reply
+  from the custody provider cut off mid-body is `provider_unavailable`, not `internal_error`, and
+  the confidential balance read (`getBalances`) answers a provider 503 after one attempt instead
+  of after the route's deadline.
 
 ## 0.9.2 (2026-11-16)
 

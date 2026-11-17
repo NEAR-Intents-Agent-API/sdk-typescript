@@ -121,6 +121,8 @@ export type Status = StatusResponse["status"];
 export type StatusResponseOf<T extends StatusType> = Extract<StatusResponse, { type: T }>;
 export type ExecutionDetails = Schemas["ExecutionDetails"];
 export type HistoryPage = Success<"getHistory">;
+/** What an `Idempotency-Key` admitted: retained `data` newest first, and the `retired` correlation ids. */
+export type OperationLookup = Success<"lookupOperations">;
 export type OperationProof = Success<"getOperationProof">;
 export type AuditProof = OperationProof["events"][number];
 /** A settled execution: a view of its terms in `details` and, once proven, its receipt. */
