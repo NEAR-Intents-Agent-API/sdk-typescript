@@ -539,7 +539,12 @@ it can run.
 If someone changed the policy meanwhile, submitting fails with `policy_revision_conflict`: read the
 current policy again and ask for a fresh signature. Other owner actions use the same four steps:
 `agent_freeze`, `agent_unfreeze`, `grant_revoke`, `execution_cancel`, `agent_archive`,
-`agent_restore`, `agent_delete` and `approval_vote`.
+`agent_restore`, `agent_delete` and `approval_vote`. `listApprovals` and `getApproval` return an
+approval's retained signed submissions in `votes`, oldest first, as `{ voter, verdict, voted_at }`.
+`voter` is the owner's principal ID (`near:<account>:<public_key>`, `evm:<account>` or
+`passkey:<account>`). `voted_at` is when the API recorded the submission. The API records it before
+sending it to the provider, so the history can include submissions the provider refused or never
+received. Use `approval.status` for the provider's decision.
 
 ## Statuses
 
@@ -803,9 +808,10 @@ the agent's NEAR shortfall the same way: `availableAmount` is what its NEAR acco
 `minAmount` what the call costs, in yoctoNEAR; a replay or status read keeps them as
 `details.available_amount` and `details.min_amount`. A withdrawal of a token to a NEAR account
 with no storage on that token's contract (a fresh 1Click deposit address) is refused with
-`invalid_address`, as is its preview: register the receiver's storage first or move the funds
-inside NEAR Intents. A refusal recorded against an operation
-keeps it as `details.min_amount` on the operation's status, so a replay under the same key states
+`recipient_storage_unregistered` (409), as is its preview: register the receiver's storage on that
+token contract first, then send again under a new key, or move the funds inside NEAR Intents.
+`invalid_address` means only that the recipient is not a valid address or the account does not
+exist. A refusal recorded against an operation keeps it as `details.min_amount` on the operation's status, so a replay under the same key states
 it too.
 
 ## Options

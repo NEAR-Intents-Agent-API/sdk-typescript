@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Types regenerated from the API's approval-votes and storage-refusal change.
+
+- Approvals (`listApprovals`, `getApproval`) carry `votes` with retained signed submissions,
+  oldest first. Each entry contains `{ voter, verdict, voted_at }`. The API records submissions
+  before sending them to the provider, so entries can include submissions the provider refused or
+  never received. `approval.status` reports the provider's decision.
+- Live and dry withdrawals to a NEAR account without storage on the withdrawn token's contract
+  return `recipient_storage_unregistered` (409). `invalid_address` covers malformed addresses and
+  missing accounts.
+
 ## 0.9.2 (2026-11-16)
 
 Workload identity federation for grants (near/near-intents-agent-api#86). Types regenerated from
