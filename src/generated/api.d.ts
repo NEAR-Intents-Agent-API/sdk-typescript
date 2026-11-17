@@ -80,6 +80,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agents/{agent_id}/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find the executions an Idempotency-Key admitted
+         * @description Recovers correlation ids without sending the request again. Pass the original `Idempotency-Key`. Covers operations that consumed a caller-supplied key at admission, including withdrawals, deposit-address allocations, and native NEAR transfers and calls. Read owner intents by their own correlation ids and use history to find native signatures. Dry previews create no operation to look up. The API key alone searches the caller's tenant and the requested agent. The key is scoped by tenant, agent, operation kind, and grant (or no grant). Lookup searches the grant-free scope and grants identified by their grant record or a completed owner issuance intent, including revoked or expired grants.
+         *
+         *     `data` contains retained matches in operation history format, newest first, without contacting the execution provider. When available, `details.request` carries normalized admitted terms and omits transport options such as a withdrawal's `async` flag. Some older operations lack those terms.
+         *
+         *     `retired` contains correlation ids with a permanent admission record and no operation detail. Terminal detail becomes eligible for cleanup 90 days after its last update by default (`HISTORY_RETENTION_MS`). Retention holds and live references can keep it longer. After a grant record is purged, the delegated retired id remains discoverable if a completed issuance intent recorded its grant id. Older grants without that record become undiscoverable once purged. Permanent admission records keep the idempotency scope spent after grant cleanup.
+         *
+         *     Admission is visible after it commits, before dispatch. Empty lists are inconclusive. Admission may still be in progress, the request may have been refused before recording, or the original grant id may be unavailable. If you replay a delegated request, use the same key and body under the original grant while it can still authorize the request. A replacement grant can admit another operation. A replay may leave the original outcome unresolved if the original grant can no longer authorize it.
+         */
+        get: operations["lookupOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/agents/{agent_id}/operations/{correlation_id}/proof": {
         parameters: {
             query?: never;
@@ -2393,6 +2419,105 @@ export interface operations {
                     "application/json": {
                         data: components["schemas"]["StatusResponse"][];
                         next_cursor: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    lookupOperations: {
+        parameters: {
+            query: {
+                idempotency_key: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["StatusResponse"][];
+                        retired: string[];
                     };
                 };
             };

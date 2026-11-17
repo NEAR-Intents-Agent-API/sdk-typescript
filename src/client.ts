@@ -35,6 +35,7 @@ import type {
   NearCallRequest,
   NearTransferRequest,
   NetworkView,
+  OperationLookup,
   OperationProof,
   PartnerQuotaView,
   PolicyHistoryView,
@@ -444,6 +445,32 @@ export class AgentApi {
     options: RequestOptions = {},
   ): Promise<HistoryPage> {
     return this.call(endpoints.getHistory, { params: { agent_id: agentId }, query, ...options });
+  }
+
+  /**
+   * Recovers the correlation ids a request admitted when its response was lost, without sending
+   * it again. Pass the original `Idempotency-Key`; the API key alone is enough, no grant. `data`
+   * holds the retained matches as history reads them, newest first, read from the API's own
+   * records (the provider is not called); a key used under two grants names two executions.
+   * `retired` holds the ids whose detail was purged after retention: the key was admitted, its
+   * request will not run again, and only the id remains. Follow a `data` entry with `getStatus`.
+   *
+   * Empty lists are inconclusive, not a "never sent": admission may still be in progress, the API
+   * may have refused the request before recording it, or the original grant's id may be
+   * unavailable. Only a replay under the same key, body and grant settles it. Dry previews create
+   * nothing to look up. The key is 8 to 128 characters of `A-Z a-z 0-9 . _ : -`; the API refuses
+   * another shape with a 400.
+   */
+  lookupOperations(
+    agentId: string,
+    idempotencyKey: string,
+    options: RequestOptions = {},
+  ): Promise<OperationLookup> {
+    return this.call(endpoints.lookupOperations, {
+      params: { agent_id: agentId },
+      query: { idempotency_key: idempotencyKey },
+      ...options,
+    });
   }
 
   /**

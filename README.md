@@ -537,7 +537,16 @@ Outside the schedule an action fails with `policy_schedule_denied`; `error.avail
 it can run.
 
 If someone changed the policy meanwhile, submitting fails with `policy_revision_conflict`: read the
-current policy again and ask for a fresh signature. Other owner actions use the same four steps:
+current policy again and ask for a fresh signature.
+
+A policy that compiles to more than the custody contract can store in one write (a ciphertext over
+15,360 bytes) is refused when the intent is generated, before the owner signs, with
+`policy_too_large` (400): allow fewer assets, per-asset limits or contracts, then generate the
+intent again. Generating a policy intent also reads the agent's freeze state from the chain: an
+unreachable chain fails with `provider_unavailable` (503, retryable) and a missing policy record
+with `provider_policy_unavailable` (503).
+
+Other owner actions use the same four steps:
 `agent_freeze`, `agent_unfreeze`, `grant_revoke`, `execution_cancel`, `agent_archive`,
 `agent_restore`, `agent_delete` and `approval_vote`. `listApprovals` and `getApproval` return an
 approval's retained signed submissions in `votes`, oldest first, as `{ voter, verdict, voted_at }`.
@@ -762,6 +771,34 @@ To retry, send the same body with the same key; the original result comes back. 
 retries by itself. A request with a new key is new work, so never use one to retry an `UNCERTAIN`
 operation. `recover` requires the original key. Quotes, reads and `submitIntent` need no key.
 
+### Find an operation after a lost response
+
+If a write's response is lost and you did not keep the `correlation_id`, `lookupOperations` finds it
+from the original key without sending the request again. It takes the API key alone (no grant) and
+calls no provider:
+
+```ts
+const { data, retired } = await api.lookupOperations(agentId, idempotencyKey);
+for (const operation of data) {
+  const status = await api.getStatus(operation.correlation_id);
+}
+```
+
+`data` holds the retained operations the key admitted on that agent, newest first, as `getHistory`
+returns them; `details.request` carries the admitted terms when the operation has them. The same
+key used under two grants names two operations. `retired` lists the correlation ids whose detail
+was purged after retention (90 days after the last update by default): the key was admitted and
+its request will never run again, but only the id remains. It covers withdrawals, deposit-address
+allocations and native NEAR transfers and calls. Owner intents are read by their own correlation
+ids and previews create nothing to find.
+
+Two empty lists prove nothing. The request may still be in admission, the API may have refused it
+before recording it, or the original grant's id may be unavailable. Only a replay settles it: send
+the same body under the same key and, for delegated work, the original grant, while that grant can
+still authorize it. A replacement grant admits new work. The key must be 8 to 128 characters of
+letters, digits, `.`, `_`, `:` and `-`; any other shape is a 400. A key that was never kept cannot
+be recovered.
+
 ## Errors
 
 Failures throw `AgentApiError` with `status`, a stable snake_case `code` (branch on it, never on
@@ -784,7 +821,7 @@ try {
 Transport, timeout, cancellation and parsing failures throw `AgentApiRequestError`, and a response
 over the size budget throws `AgentApiResponseTooLargeError`. Both keep the original `idempotencyKey`
 (and `cause`); a failed write may still have reached the API, so reconcile the original operation
-before retrying. `retryable` means the identical call under the same `idempotencyKey` can succeed
+before retrying (`lookupOperations` finds it from the key). `retryable` means the identical call under the same `idempotencyKey` can succeed
 after `availableAt` or `retryAfterSeconds` (the response's `Retry-After` header); server errors (`internal_error`, `database_busy`,
 `transaction_unconfirmed`) are retryable because the call may have taken effect, so repeat them
 under the same key, never a new one. A rejected partner API key is `invalid_api_key` (401, the key
@@ -831,7 +868,7 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 
 | Area | Methods |
 |---|---|
-| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `getOperationProof`, `getReceipt`, `listReceipts` |
+| Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `lookupOperations`, `getOperationProof`, `getReceipt`, `listReceipts` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
 | Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `exchangeGrantToken`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield` (deprecated: always refused), `cancelLimitOrder`, `cancelAllLimitOrders` |
