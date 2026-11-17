@@ -4261,6 +4261,13 @@ export interface operations {
                             };
                             required_approvals: number;
                             expires_at: string;
+                            votes: {
+                                voter: string;
+                                /** @enum {string} */
+                                verdict: "approve" | "reject";
+                                /** Format: date-time */
+                                voted_at: string;
+                            }[];
                         }[];
                         truncated: boolean;
                     };
@@ -4372,6 +4379,13 @@ export interface operations {
                         };
                         required_approvals: number;
                         expires_at: string;
+                        votes: {
+                            voter: string;
+                            /** @enum {string} */
+                            verdict: "approve" | "reject";
+                            /** Format: date-time */
+                            voted_at: string;
+                        }[];
                     };
                 };
             };

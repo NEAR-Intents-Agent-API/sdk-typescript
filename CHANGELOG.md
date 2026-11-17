@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Types regenerated from the API's approval-votes and storage-refusal change. Additive: nothing a
+0.9.2 caller does changes.
+
+- Approvals (`listApprovals`, `getApproval`) carry `votes`: the owner votes submitted through the
+  API, oldest first, each `{ voter, verdict, voted_at }`. `voter` is the owner's principal id
+  (`near:<account>:<public_key>`, `evm:<account>` or `passkey:<account>`).
+- A withdrawal (or its preview) to a NEAR account with no storage on the withdrawn token's
+  contract is now refused `recipient_storage_unregistered` (409) instead of `invalid_address`.
+  `invalid_address` now means only that the recipient is not a valid address or does not exist.
+
 ## 0.9.2 (2026-11-16)
 
 Workload identity federation for grants (near/near-intents-agent-api#86). Types regenerated from
