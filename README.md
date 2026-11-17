@@ -539,10 +539,12 @@ it can run.
 If someone changed the policy meanwhile, submitting fails with `policy_revision_conflict`: read the
 current policy again and ask for a fresh signature. Other owner actions use the same four steps:
 `agent_freeze`, `agent_unfreeze`, `grant_revoke`, `execution_cancel`, `agent_archive`,
-`agent_restore`, `agent_delete` and `approval_vote`. `listApprovals` and `getApproval` return each
-approval with `votes`: the owner votes submitted through the API, oldest first, as
-`{ voter, verdict, voted_at }` (`voter` is the owner's principal id: `near:<account>:<public_key>`,
-`evm:<account>` or `passkey:<account>`). A vote cast directly at the provider is not listed.
+`agent_restore`, `agent_delete` and `approval_vote`. `listApprovals` and `getApproval` return an
+approval's retained signed submissions in `votes`, oldest first, as `{ voter, verdict, voted_at }`.
+`voter` is the owner's principal ID (`near:<account>:<public_key>`, `evm:<account>` or
+`passkey:<account>`). `voted_at` is when the API recorded the submission. The API records it before
+sending it to the provider, so the history can include submissions the provider refused or never
+received. Use `approval.status` for the provider's decision.
 
 ## Statuses
 

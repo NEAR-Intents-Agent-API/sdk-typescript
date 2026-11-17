@@ -2,15 +2,15 @@
 
 ## Unreleased
 
-Types regenerated from the API's approval-votes and storage-refusal change. Additive: nothing a
-0.9.2 caller does changes.
+Types regenerated from the API's approval-votes and storage-refusal change.
 
-- Approvals (`listApprovals`, `getApproval`) carry `votes`: the owner votes submitted through the
-  API, oldest first, each `{ voter, verdict, voted_at }`. `voter` is the owner's principal id
-  (`near:<account>:<public_key>`, `evm:<account>` or `passkey:<account>`).
-- A withdrawal (or its preview) to a NEAR account with no storage on the withdrawn token's
-  contract is now refused `recipient_storage_unregistered` (409) instead of `invalid_address`.
-  `invalid_address` now means only that the recipient is not a valid address or does not exist.
+- Approvals (`listApprovals`, `getApproval`) carry `votes` with retained signed submissions,
+  oldest first. Each entry contains `{ voter, verdict, voted_at }`. The API records submissions
+  before sending them to the provider, so entries can include submissions the provider refused or
+  never received. `approval.status` reports the provider's decision.
+- Live and dry withdrawals to a NEAR account without storage on the withdrawn token's contract
+  return `recipient_storage_unregistered` (409). `invalid_address` covers malformed addresses and
+  missing accounts.
 
 ## 0.9.2 (2026-11-16)
 
