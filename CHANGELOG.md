@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.4 (2026-11-19)
+
+Approval votes report a reject that OutLayer only recorded (near/near-intents-agent-api#190).
+Types regenerated from that branch. Additive: nothing a 0.9.3 caller does changes.
+
+- `approval_vote` status details carry `repeat_required` (`boolean | null`, null until the vote
+  is applied). A `reject` sent within a block or two of a policy change can be stored by the
+  provider without cancelling the request. The API resends the owner's signed reject for a few
+  seconds; `true` means the request is still pending after that, so generate and sign the reject
+  again.
+- `approval_vote` status details can carry `confirmation: "cancellation_observed"`: a fresh
+  reject lost its reply, and the API observed the cancellation from the earlier receipt.
+
 ## 0.9.3 (2026-11-17)
 
 Operation lookup by `Idempotency-Key` (near/near-intents-agent-api#182, answers #38). Types

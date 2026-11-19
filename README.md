@@ -555,6 +555,13 @@ approval's retained signed submissions in `votes`, oldest first, as `{ voter, ve
 sending it to the provider, so the history can include submissions the provider refused or never
 received. Use `approval.status` for the provider's decision.
 
+A `reject` sent within a block or two of a policy change can be stored by the provider without
+cancelling the request. The API resends the owner's signed reject for a few seconds. If the request
+is still pending after that, the vote's status has `details.repeat_required: true`: generate the
+`approval_vote` intent again and have the owner sign another reject. `details.confirmation` of
+`cancellation_observed` means a fresh reject lost its reply and the API observed the cancellation
+from the earlier receipt.
+
 ## Statuses
 
 `getStatus` returns the operation with a `status`:
