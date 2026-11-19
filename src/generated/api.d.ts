@@ -1570,6 +1570,9 @@ export interface components {
             details: {
                 approval_id: string | null;
                 verdict: ("approve" | "reject") | null;
+                repeat_required: boolean | null;
+                /** @constant */
+                confirmation?: "cancellation_observed";
             };
         } | {
             correlation_id: string;
