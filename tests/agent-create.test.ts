@@ -45,6 +45,9 @@ test("a generated agent_create verifies for every owner type, passkeys included"
     const { commitment, grant } = verifyAgentCreateIntent(generated, { grant: request.grant });
     assert.equal(grant?.grant_id, generated.preview.grant?.grant_id);
     assert.match(commitment, /^[0-9a-f]{64}$/);
+    // The API signs the trimmed label, so a padded request still verifies.
+    const padded = { ...must(request.grant), label: ` ${must(request.grant).label} ` };
+    verifyAgentCreateIntent(generated, { grant: padded });
     return generated.intent.standard;
   });
   assert.deepEqual(standards, ["nep366", "eip712", "webauthn"]);

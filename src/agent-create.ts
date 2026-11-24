@@ -164,7 +164,8 @@ function assertGrantAsked(
   if (canonical(message.owner) !== canonical(generated.signer))
     fail("the grant names another owner than the signer");
   if (message.owner_epoch !== 1) fail("a new agent's first grant is at owner epoch 1");
-  if (message.label !== asked.label) fail("the grant label differs from the one asked for");
+  // The API trims a label before the owner signs it.
+  if (message.label !== asked.label.trim()) fail("the grant label differs from the one asked for");
   if (message.expires_at_ms !== Date.parse(asked.expires_at))
     fail("the grant expiry differs from the one asked for");
   if (!sameCredential(message.credential, asked.credential))
