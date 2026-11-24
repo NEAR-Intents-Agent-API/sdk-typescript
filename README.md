@@ -228,6 +228,38 @@ const grant = await api.generateIntent({
 const assistant = api.forGrant(token); // one client per grant
 ```
 
+### The first grant, in the same signature as the agent
+
+`agent_create` takes an optional `grant` with the same terms as `grant_issue`. The owner's one
+signature then creates the agent and authorizes that grant: the grant is hashed into the policy
+commitment the wallet signs. A NEAR or EVM wallet shows the owner only that hash, and a passkey
+signs a challenge over it, so check the payload on your backend before handing it to the wallet:
+
+```ts
+import { createGrantCredential, verifyAgentCreateIntent } from "@near-intents-agent-api/sdk";
+
+const { token, commitment } = createGrantCredential();
+const grantTerms = {
+  label: "Trading assistant",
+  credential: commitment,
+  expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+};
+const generated = await api.generateIntent({ type: "agent_create", name, owner, policy, grant: grantTerms });
+// Throws AgentCreateVerificationError unless the signed hash commits to exactly
+// generated.preview.policy and the grant you asked for (NEAR, EVM and passkey owners).
+verifyAgentCreateIntent(generated, { grant: grantTerms });
+// The owner signs generated.intent and your backend submits it, as in "Create an agent".
+const status = await settled(generated.correlation_id);
+status.details.grant_install; // "installed", or "refused:grant_credential_reused"
+const assistant = api.forGrant(token);
+```
+
+The expiry must outlast the signing window and a token already bound to another grant is refused
+when you call `generateIntent`, before any agent exists. The agent is never refused at activation
+because of its grant: if another onboarding bound the same token first, the agent is created
+without the grant and `grant_install` says why. `listGrants` shows such a grant with
+`issued_via: { type: "agent_create", transaction_hash, policy_revision: 1, policy_commitment }`.
+
 The agent then acts within the policy, with no further owner signature:
 
 ```ts

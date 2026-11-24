@@ -11,7 +11,7 @@ export interface paths {
         put?: never;
         /**
          * Generate an owner intent for signing
-         * @description Builds the exact payload the owner's wallet must sign for one owner action and returns it as `intent: {standard, payload}`. Sign `intent.payload` unchanged with the wallet named by `standard`, then call submit-intent with the wallet's output. `agent_create` creates a pending agent and returns its id.
+         * @description Builds the exact payload the owner's wallet must sign for one owner action and returns it as `intent: {standard, payload}`. Sign `intent.payload` unchanged with the wallet named by `standard`, then call submit-intent with the wallet's output. `agent_create` creates a pending agent and returns its id; with `grant` the same signature also authorizes its first grant.
          */
         post: operations["generateIntent"];
         delete?: never;
@@ -531,7 +531,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. Both also return `recipient_storage_unregistered` (409) when a NEAR recipient lacks storage on the token's contract. Register the recipient with `storage_deposit` on that contract, then send again under a new Idempotency-Key. The account's rules never refuse a preview: it answers with `spend` (USD value and budget left), `fee` (on chain `near`, the provider's estimate when stated in the withdrawn asset, otherwise `amount` minus `quote.amount_out`; on a confidential bridged route, `amount` minus `quote.amount_out` valued in the asset of the same symbol 1Click lists on that chain; null for a public bridged route, when the quote states no `amount_out`, when the chain lists no single asset of that symbol, when either asset has no fresh price, or when the delivery is worth more than `amount`) and `warnings`, which list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued) and `asset_delivered_as_is` (a non-USDC asset to `hypercore`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR (`nep141:wrap.near`, or `near`) withdrawn to chain `near` always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. Both also return `recipient_storage_unregistered` (409) when a NEAR recipient lacks storage on the token's contract. Register the recipient with `storage_deposit` on that contract, then send again under a new Idempotency-Key. The account's rules never refuse a preview. It answers with `spend` (USD value and budget left), `fee` and `warnings`. For a confidential bridged withdrawal, including to `near` when 1Click lists the withdrawn asset on another chain, the fee is the USD value sent minus the USD value of `quote.amount_out` in the same-symbol destination listing. A bridged fee is null for a public route, when there is no usable `amount_out` or unique destination listing, when either asset lacks a fresh price, or when the delivery is worth more than the amount sent. For other withdrawals to `near`, the fee uses `estimated_fee` when it is zero or `fee_token` names the withdrawn asset. Otherwise it uses `amount` minus `quote.amount_out` in that asset's units. Warnings list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued), `asset_delivered_as_is` (a non-USDC asset to `hypercore`) and `provider_would_refuse` (the wallet provider's own dry run says it would refuse the withdrawal, its reason in `detail`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR is `nep141:wrap.near` (`near` and `native` are refused with `unsupported_token`); withdrawn to chain `near` it always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -731,7 +731,7 @@ export interface paths {
         put?: never;
         /**
          * Sign an EIP-191 message with the agent's EVM key
-         * @description Needs `native.evm.sign_message`. Text or bytes that are a NEAR Intents payload (they hold `verifying_contract`, or `signer_id` with `intents`) are refused with `intents_payload_use_sign_intent`: sign those with `sign-intent`. A deployment that sets `SIGN_MESSAGE_INTENTS_ENABLED` signs them here instead, with none of `sign-intent`'s checks, so this switch then amounts to full control of the key's NEAR Intents account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Needs `native.evm.sign_message`. Text or bytes that are a NEAR Intents payload (they hold `verifying_contract`, or `signer_id` with `intents`) are refused with `intents_payload_use_sign_intent`: sign those with `sign-intent`. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignMessage"];
         delete?: never;
@@ -811,7 +811,7 @@ export interface paths {
         put?: never;
         /**
          * Sign an off-chain message with the agent's Solana key
-         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused (`validation_failed`), and so are bytes that are a NEAR Intents payload (`intents_payload_use_sign_intent`, unless the deployment sets `SIGN_MESSAGE_INTENTS_ENABLED`): sign those with `sign-intent`. Any other bytes are signed as sent. The check reads the bytes, and a 32-byte digest that its standard hashes first cannot be read, so the other signature standards NEAR Intents accepts can be signed here: this switch amounts to full control of this key's NEAR Intents account (the lowercase hex of the public key behind `wallet.solana_account_id`), without the receiver checks of `sign-intent`. Give it only to an agent trusted with that account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Needs `native.solana.sign_message`. Signs as `wallet.solana_account_id`. Bytes that parse as a Solana transaction message are refused (`validation_failed`), and so are bytes that are a NEAR Intents payload (`intents_payload_use_sign_intent`): sign those with `sign-intent`. Any other bytes are signed as sent. The check reads the bytes, and a 32-byte digest that its standard hashes first cannot be read, so the other signature standards NEAR Intents accepts can be signed here: this switch amounts to full control of this key's NEAR Intents account (the lowercase hex of the public key behind `wallet.solana_account_id`), without the receiver checks of `sign-intent`. Give it only to an agent trusted with that account. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `destinations`, `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignMessage"];
         delete?: never;
@@ -1246,6 +1246,121 @@ export interface components {
                 /** @enum {string} */
                 verdict: "approve" | "reject";
             };
+            grant?: {
+                grant_id: string;
+                owner_message: {
+                    /** @constant */
+                    domain: "near-intents-agent-api.agent-grant.v6";
+                    owner: components["schemas"]["OwnerWallet"];
+                    tenant_id: string;
+                    agent_id: string;
+                    wallet_id: string;
+                    label: string;
+                    credential: string | {
+                        /** @constant */
+                        type: "oidc";
+                        issuer: string & (unknown & unknown);
+                        audience: string;
+                        claims: {
+                            [key: string]: string;
+                        };
+                        jwks?: {
+                            keys: ({
+                                /** @constant */
+                                kty: "RSA";
+                                n: string;
+                                e: string;
+                                /** @enum {string} */
+                                alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            } | {
+                                /** @constant */
+                                kty: "EC";
+                                /** @enum {string} */
+                                crv: "P-256" | "P-384";
+                                x: string;
+                                y: string;
+                                /** @enum {string} */
+                                alg?: "ES256" | "ES384";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            } | {
+                                /** @constant */
+                                kty: "OKP";
+                                /** @constant */
+                                crv: "Ed25519";
+                                x: string;
+                                /** @enum {string} */
+                                alg?: "EdDSA" | "Ed25519";
+                                kid?: string;
+                                /** @constant */
+                                use?: "sig";
+                            })[];
+                        };
+                    } | {
+                        /** @constant */
+                        type: "public_key";
+                        jwk: {
+                            /** @constant */
+                            kty: "OKP";
+                            /** @constant */
+                            crv: "Ed25519";
+                            x: string;
+                        } | {
+                            /** @constant */
+                            kty: "EC";
+                            /** @constant */
+                            crv: "P-256";
+                            x: string;
+                            y: string;
+                        };
+                    };
+                    /** @constant */
+                    network: "mainnet";
+                    issued_at_ms: number;
+                    expires_at_ms: number;
+                    owner_epoch: number;
+                    nonce: string;
+                    recipient: string;
+                };
+            };
+            wallet_request?: {
+                /** @constant */
+                pay_for_gas?: false;
+                /** @constant */
+                chain_id: "mainnet";
+                signer_id: string;
+                nonce: number;
+                /** Format: date-time */
+                created_at: string;
+                timeout_secs: number;
+                request: {
+                    external: {
+                        receiver_id: string;
+                        refund_to?: string;
+                        actions: ({
+                            /** @constant */
+                            action: "transfer";
+                            payload: {
+                                amount: string;
+                            };
+                        } | {
+                            /** @constant */
+                            action: "function_call";
+                            payload: {
+                                function_name: string;
+                                args?: string;
+                                deposit?: string;
+                                gas?: string;
+                                gas_weight?: string;
+                            };
+                        })[];
+                    }[];
+                };
+            };
         };
         DeletionPreview: {
             near_account_id: string;
@@ -1379,6 +1494,13 @@ export interface components {
                 policy_hash: string | null;
                 transaction_hash: string | null;
                 agent_id: string;
+                grant: {
+                    grant_id: string;
+                    label: string;
+                    /** @enum {string} */
+                    credential_type: "token" | "oidc" | "public_key";
+                } | null;
+                grant_install: ("installed" | "refused:grant_credential_reused") | null;
             };
         } | {
             correlation_id: string;
@@ -1817,6 +1939,17 @@ export interface components {
                 nonce: string;
                 recipient: string;
             };
+            issued_via: {
+                /** @constant */
+                type: "grant_issue";
+            } | {
+                /** @constant */
+                type: "agent_create";
+                transaction_hash: string;
+                /** @constant */
+                policy_revision: 1;
+                policy_commitment: string;
+            };
         };
         ExecutionDetails: {
             action: string;
@@ -1966,7 +2099,7 @@ export interface components {
             } | null;
             warnings: {
                 /** @enum {string} */
-                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "approval_backlog_full" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is";
+                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "approval_backlog_full" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is" | "provider_would_refuse";
                 detail: string;
                 /** Format: date-time */
                 available_at?: string;
@@ -2001,6 +2134,73 @@ export interface operations {
                     external_user_id?: string;
                     owner: components["schemas"]["OwnerWallet"];
                     policy: components["schemas"]["Policy"];
+                    grant?: {
+                        label: string & (unknown & unknown);
+                        credential: string | {
+                            /** @constant */
+                            type: "oidc";
+                            issuer: string & (unknown & unknown);
+                            claims: {
+                                [key: string]: string;
+                            };
+                            jwks?: {
+                                keys: ({
+                                    /** @constant */
+                                    kty: "RSA";
+                                    n: string;
+                                    e: string;
+                                    /** @enum {string} */
+                                    alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
+                                    kid?: string;
+                                    /** @constant */
+                                    use?: "sig";
+                                } | {
+                                    /** @constant */
+                                    kty: "EC";
+                                    /** @enum {string} */
+                                    crv: "P-256" | "P-384";
+                                    x: string;
+                                    y: string;
+                                    /** @enum {string} */
+                                    alg?: "ES256" | "ES384";
+                                    kid?: string;
+                                    /** @constant */
+                                    use?: "sig";
+                                } | {
+                                    /** @constant */
+                                    kty: "OKP";
+                                    /** @constant */
+                                    crv: "Ed25519";
+                                    x: string;
+                                    /** @enum {string} */
+                                    alg?: "EdDSA" | "Ed25519";
+                                    kid?: string;
+                                    /** @constant */
+                                    use?: "sig";
+                                })[];
+                            };
+                            audience?: string;
+                        } | {
+                            /** @constant */
+                            type: "public_key";
+                            jwk: {
+                                /** @constant */
+                                kty: "OKP";
+                                /** @constant */
+                                crv: "Ed25519";
+                                x: string;
+                            } | {
+                                /** @constant */
+                                kty: "EC";
+                                /** @constant */
+                                crv: "P-256";
+                                x: string;
+                                y: string;
+                            };
+                        };
+                        /** Format: date-time */
+                        expires_at: string;
+                    };
                 } | {
                     /** @constant */
                     type: "policy_update";

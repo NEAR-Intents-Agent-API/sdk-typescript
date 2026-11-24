@@ -1,4 +1,11 @@
 export {
+  AgentCreateVerificationError,
+  agentCreateCommitment,
+  type CreateGrant,
+  type CreateGrantTerms,
+  verifyAgentCreateIntent,
+} from "./agent-create.js";
+export {
   AgentApi,
   type AgentApiOptions,
   createAgentApi,
@@ -51,6 +58,11 @@ export {
 } from "./grants.js";
 export { createIdempotencyKey, type IdempotentResult } from "./idempotency.js";
 export type * from "./types.js";
+export {
+  serializeWalletRequestMessage,
+  type WalletRequestMessage,
+  walletRequestChallenge,
+} from "./wallet-request.js";
 export {
   createGrantProof,
   createKeyAssertion,
