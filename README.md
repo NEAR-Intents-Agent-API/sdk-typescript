@@ -250,7 +250,7 @@ const generated = await api.generateIntent({ type: "agent_create", name, owner, 
 verifyAgentCreateIntent(generated, { grant: grantTerms });
 // The owner signs generated.intent and your backend submits it, as in "Create an agent".
 const status = await settled(generated.correlation_id);
-status.details.grant_install; // "installed", or "refused:grant_credential_reused"
+status.details.grant_install; // start the agent only on "installed"; otherwise "refused:grant_credential_reused" or "refused:grant_expired"
 const assistant = api.forGrant(token);
 ```
 

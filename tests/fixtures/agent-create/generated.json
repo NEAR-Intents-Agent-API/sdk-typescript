@@ -1,5 +1,5 @@
 {
-  "tenantId": "f3fa4afe8a53d770ac53825168220a87f02a48244b7b3a270440e56fd0e8b398",
+  "tenantId": "6760a9b5433f6b9c8944eb0178c23e13914b3a2cc29fa87dc039dc14d45793cc",
   "cases": [
     {
       "request": {
@@ -8,7 +8,7 @@
         "owner": {
           "type": "near",
           "account_id": "owner.near",
-          "public_key": "ed25519:GLhz1E3UEYBWUwAfVheM2JDqsLihw8bwdUNZTB8rQyq4"
+          "public_key": "ed25519:Btd8PXviPpV5QiwFd1uacRVhy945ETbxVeezTcAafoh"
         },
         "policy": {
           "frozen": false,
@@ -36,19 +36,19 @@
         "grant": {
           "label": "first grant",
           "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4",
-          "expires_at": "2026-12-24T07:06:13.061Z"
+          "expires_at": "2026-12-24T08:25:39.196Z"
         }
       },
       "generated": {
-        "correlation_id": "intent_tmgmTaLWKodjqtiWg7aoLRFxiNacKcIT5nOOTyPWgWI",
+        "correlation_id": "intent_uiewb2rv48e9NCW1KhQ4ra_mHPVqkMSQUs4MAiMMBXM",
         "type": "agent_create",
-        "agent_id": "a8a07ef4d67fccf32611731097fa7f69f4b90633ce9580d7e732ff4e36bd5ccf",
+        "agent_id": "d4d9b7a18c44dda92710e65f2f324bd4027316eb09a58d0541ae0671f6eb542c",
         "status": "PENDING_SIGNATURE",
-        "expires_at": "2026-11-24T07:16:13.109Z",
+        "expires_at": "2026-11-24T08:26:39.249Z",
         "signer": {
           "type": "near",
           "account_id": "owner.near",
-          "public_key": "ed25519:GLhz1E3UEYBWUwAfVheM2JDqsLihw8bwdUNZTB8rQyq4"
+          "public_key": "ed25519:Btd8PXviPpV5QiwFd1uacRVhy945ETbxVeezTcAafoh"
         },
         "intent": {
           "payload": {
@@ -64,7 +64,7 @@
                     "wallet_pubkey": "ed25519:a1a38412de41bfcd452633cbfdf18029d90537b66f19121861e92ea0e5e297e7",
                     "encrypted_data": "eyJ2ZXJzaW9uIjoxLCJjYXBhYmlsaXRpZXMiOnsiY29uZmlkZW50aWFsIjp7ImFsbG93ZWQiOnRydWUsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZX0sImNyb3NzX2NoYWluX3dpdGhkcmF3Ijp7ImFsbG93ZWQiOmZhbHNlLCJyZXF1aXJlc19hcHByb3ZhbCI6ZmFsc2V9LCJzaWduX21lc3NhZ2UiOnsiYWxsb3dlZCI6ZmFsc2UsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZSwiYWxsb3dlZF9yZWNpcGllbnRzIjpbXX0sInN3YXAiOnsiYWxsb3dlZCI6ZmFsc2UsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZX19LCJmcm96ZW4iOmZhbHNlLCJydWxlcyI6eyJhbGxvd2VkX3Rva2VucyI6WyJuYXRpdmUiLCJuZXAxNDE6d3JhcC5uZWFyIl0sInRyYW5zYWN0aW9uX3R5cGVzIjpbImludGVudHNfdHJhbnNmZXIiLCJjb25maWRlbnRpYWwiLCJkZWxldGUiXX0sIndhbGxldF9pZCI6IndhbGxldC0xIn0=",
                     "wallet_signature": "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
-                    "agent_policy_hash": "fd5ec2fc29240080775ec50566484e1a3965492a19acb2acaedd7ceb0aa56730",
+                    "agent_policy_hash": "08b7e560985da8d45f0d0d4d9a09a19176b78ae358f41ea7973918e97ba19565",
                     "storage_refund_to": "sponsor.near"
                   },
                   "deposit": "11900000000000000000000",
@@ -78,25 +78,25 @@
         },
         "preview": {
           "grant": {
-            "grant_id": "5021813dc38ee2d0a32e777c638079f39f5f6ee180110da707db46e290a50d2d",
+            "grant_id": "f6af995f38a79c427b53d0a6e03db703774919450bff327f1f125123e16d38dc",
             "owner_message": {
               "label": "first grant",
-              "nonce": "7997ccbd4b4af26518430f9bba7c1487bcae42fad8b3f70bd8488d91e28f1343",
+              "nonce": "53f6f0d4795566f5d00b671e49560e918e0185e811990f8ae90411e7d35244da",
               "owner": {
                 "type": "near",
                 "account_id": "owner.near",
-                "public_key": "ed25519:GLhz1E3UEYBWUwAfVheM2JDqsLihw8bwdUNZTB8rQyq4"
+                "public_key": "ed25519:Btd8PXviPpV5QiwFd1uacRVhy945ETbxVeezTcAafoh"
               },
               "domain": "near-intents-agent-api.agent-grant.v6",
               "network": "mainnet",
-              "agent_id": "a8a07ef4d67fccf32611731097fa7f69f4b90633ce9580d7e732ff4e36bd5ccf",
+              "agent_id": "d4d9b7a18c44dda92710e65f2f324bd4027316eb09a58d0541ae0671f6eb542c",
               "recipient": "api.test",
-              "tenant_id": "f3fa4afe8a53d770ac53825168220a87f02a48244b7b3a270440e56fd0e8b398",
+              "tenant_id": "6760a9b5433f6b9c8944eb0178c23e13914b3a2cc29fa87dc039dc14d45793cc",
               "wallet_id": "wallet-1",
               "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4",
               "owner_epoch": 1,
-              "issued_at_ms": 1795503973102,
-              "expires_at_ms": 1798095973061
+              "issued_at_ms": 1795508739242,
+              "expires_at_ms": 1798100739196
             }
           },
           "policy": {
@@ -122,12 +122,12 @@
             },
             "timelock_ms": 0
           },
-          "summary": "Create agent \"near agent\" owned by owner.near and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T07:06:13.061Z. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
+          "summary": "Create agent \"near agent\" owned by owner.near and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T08:25:39.196Z. If by the time this applies another agent has bound its token or the grant has expired, the agent is created without it. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
           "revision": 1,
           "policy_hash": "ce76eb49aad332cb233d08353961e290deaf97ac253a043a9ef62cb3d09e4686",
           "previous_revision": 0
         },
-        "idempotencyKey": "8754a5f3-9b90-4b59-a3a3-8bb3be8ef919"
+        "idempotencyKey": "d9d01723-1a06-48fe-ab72-125ea1356f2c"
       }
     },
     {
@@ -136,9 +136,9 @@
         "name": "evm agent",
         "owner": {
           "type": "evm",
-          "address": "0xfccf8c0395191406727615d338b618fcf135dc29",
+          "address": "0x2107fecfdb6ce6e584726fff902d27dbdcef6804",
           "chain_id": 1,
-          "public_key": "0x476042492b94799e59ed312acfe131d3d10d045d875e34079cca93d9c194db7f58647b72af8efd30027b38d0439c26010c7b19574a03797c3bf46053900b766c"
+          "public_key": "0x6edafa713c6ecef227f29b1ae5bb74d4eb88f40cf5c398c5b1f23b64ac49487fee8ca15b36f6f3709292e6dee80b859f5b179b2090bf2375cc2714bf056cdb2b"
         },
         "policy": {
           "frozen": false,
@@ -166,20 +166,20 @@
         "grant": {
           "label": "first grant",
           "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3",
-          "expires_at": "2026-12-24T07:06:13.061Z"
+          "expires_at": "2026-12-24T08:25:39.196Z"
         }
       },
       "generated": {
-        "correlation_id": "intent_crZ14nVS2ZSS_4xgOzpgNe2V18AO4BrJfGibXQgLUY0",
+        "correlation_id": "intent_QVwzdEz7Lp32jZBfP7bRehhKV3EBkee55pNrufJa8aY",
         "type": "agent_create",
-        "agent_id": "ef0fe7c6f24699b288f40e5355d13a9b5eb50a47dd6133943b12bb949b9fc82a",
+        "agent_id": "2b2d78a17bc8083e053b911c14e6d1b19883eb8d235142cce568478db46dc80d",
         "status": "PENDING_SIGNATURE",
-        "expires_at": "2026-11-24T07:15:43.000Z",
+        "expires_at": "2026-11-24T08:26:09.000Z",
         "signer": {
           "type": "evm",
-          "address": "0xfccf8c0395191406727615d338b618fcf135dc29",
+          "address": "0x2107fecfdb6ce6e584726fff902d27dbdcef6804",
           "chain_id": 1,
-          "public_key": "0x476042492b94799e59ed312acfe131d3d10d045d875e34079cca93d9c194db7f58647b72af8efd30027b38d0439c26010c7b19574a03797c3bf46053900b766c"
+          "public_key": "0x6edafa713c6ecef227f29b1ae5bb74d4eb88f40cf5c398c5b1f23b64ac49487fee8ca15b36f6f3709292e6dee80b859f5b179b2090bf2375cc2714bf056cdb2b"
         },
         "intent": {
           "payload": {
@@ -231,12 +231,12 @@
             },
             "message": {
               "ops": "[]",
-              "out": "{\"after\":[],\"then\":[{\"receiver_id\":\"outlayer.near\",\"actions\":[{\"action\":\"function_call\",\"function_name\":\"store_wallet_policy\",\"args\":\"eyJ3YWxsZXRfcHVia2V5IjoiZWQyNTUxOToxZWMxMGY0NmQ5Yjk4YzlkMzAxYTcxZDMzMGQ4M2E2YTUyNWJkYWM0ZDcwNjM0MGJlOGM0ZjEwOTVmZTdmZDRmIiwiZW5jcnlwdGVkX2RhdGEiOiJleUoyWlhKemFXOXVJam94TENKallYQmhZbWxzYVhScFpYTWlPbnNpWTI5dVptbGtaVzUwYVdGc0lqcDdJbUZzYkc5M1pXUWlPblJ5ZFdVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6Wlgwc0ltTnliM056WDJOb1lXbHVYM2RwZEdoa2NtRjNJanA3SW1Gc2JHOTNaV1FpT21aaGJITmxMQ0p5WlhGMWFYSmxjMTloY0hCeWIzWmhiQ0k2Wm1Gc2MyVjlMQ0p6YVdkdVgyMWxjM05oWjJVaU9uc2lZV3hzYjNkbFpDSTZabUZzYzJVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6WlN3aVlXeHNiM2RsWkY5eVpXTnBjR2xsYm5SeklqcGJYWDBzSW5OM1lYQWlPbnNpWVd4c2IzZGxaQ0k2Wm1Gc2MyVXNJbkpsY1hWcGNtVnpYMkZ3Y0hKdmRtRnNJanBtWVd4elpYMTlMQ0ptY205NlpXNGlPbVpoYkhObExDSnlkV3hsY3lJNmV5SmhiR3h2ZDJWa1gzUnZhMlZ1Y3lJNld5SnVZWFJwZG1VaUxDSnVaWEF4TkRFNmQzSmhjQzV1WldGeUlsMHNJblJ5WVc1ellXTjBhVzl1WDNSNWNHVnpJanBiSW1sdWRHVnVkSE5mZEhKaGJuTm1aWElpTENKamIyNW1hV1JsYm5ScFlXd2lMQ0prWld4bGRHVWlYWDBzSW5kaGJHeGxkRjlwWkNJNkluZGhiR3hsZEMweUluMD0iLCJ3YWxsZXRfc2lnbmF0dXJlIjoiMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJ2ZXJzaW9uIjoxLCJsb2NrZWQiOmZhbHNlLCJ2YWxpZF91bnRpbCI6NDEwMjQ0NDgwMCwiYWdlbnRfcG9saWN5X2hhc2giOiIxOTE3YjJlNjdmMjg3NzAxN2Q4MjcyNzYxNDZkYTNkZjQxOTBkZjIzZDY4YWU1NzM3OWQwNzBmNDFkYmU5Nzg0Iiwic3RvcmFnZV9yZWZ1bmRfdG8iOiJzcG9uc29yLm5lYXIifQ==\",\"deposit\":\"11900000000000000000000\",\"min_gas\":\"100000000000000\"}]}]}",
-              "nonce": 1481989502,
+              "out": "{\"after\":[],\"then\":[{\"receiver_id\":\"outlayer.near\",\"actions\":[{\"action\":\"function_call\",\"function_name\":\"store_wallet_policy\",\"args\":\"eyJ3YWxsZXRfcHVia2V5IjoiZWQyNTUxOToxZWMxMGY0NmQ5Yjk4YzlkMzAxYTcxZDMzMGQ4M2E2YTUyNWJkYWM0ZDcwNjM0MGJlOGM0ZjEwOTVmZTdmZDRmIiwiZW5jcnlwdGVkX2RhdGEiOiJleUoyWlhKemFXOXVJam94TENKallYQmhZbWxzYVhScFpYTWlPbnNpWTI5dVptbGtaVzUwYVdGc0lqcDdJbUZzYkc5M1pXUWlPblJ5ZFdVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6Wlgwc0ltTnliM056WDJOb1lXbHVYM2RwZEdoa2NtRjNJanA3SW1Gc2JHOTNaV1FpT21aaGJITmxMQ0p5WlhGMWFYSmxjMTloY0hCeWIzWmhiQ0k2Wm1Gc2MyVjlMQ0p6YVdkdVgyMWxjM05oWjJVaU9uc2lZV3hzYjNkbFpDSTZabUZzYzJVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6WlN3aVlXeHNiM2RsWkY5eVpXTnBjR2xsYm5SeklqcGJYWDBzSW5OM1lYQWlPbnNpWVd4c2IzZGxaQ0k2Wm1Gc2MyVXNJbkpsY1hWcGNtVnpYMkZ3Y0hKdmRtRnNJanBtWVd4elpYMTlMQ0ptY205NlpXNGlPbVpoYkhObExDSnlkV3hsY3lJNmV5SmhiR3h2ZDJWa1gzUnZhMlZ1Y3lJNld5SnVZWFJwZG1VaUxDSnVaWEF4TkRFNmQzSmhjQzV1WldGeUlsMHNJblJ5WVc1ellXTjBhVzl1WDNSNWNHVnpJanBiSW1sdWRHVnVkSE5mZEhKaGJuTm1aWElpTENKamIyNW1hV1JsYm5ScFlXd2lMQ0prWld4bGRHVWlYWDBzSW5kaGJHeGxkRjlwWkNJNkluZGhiR3hsZEMweUluMD0iLCJ3YWxsZXRfc2lnbmF0dXJlIjoiMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJ2ZXJzaW9uIjoxLCJsb2NrZWQiOmZhbHNlLCJ2YWxpZF91bnRpbCI6NDEwMjQ0NDgwMCwiYWdlbnRfcG9saWN5X2hhc2giOiIwMGYwZTE5NTA5MWY3MjcyMmQ4ZTJlMjc0NTQyNTU0YjM1ZTc2NjhjMmQ2MmM3OWE3NjkxOTIwZjY4NTVhYTU3Iiwic3RvcmFnZV9yZWZ1bmRfdG8iOiJzcG9uc29yLm5lYXIifQ==\",\"deposit\":\"11900000000000000000000\",\"min_gas\":\"100000000000000\"}]}]}",
+              "nonce": 2982149740,
               "chainId": "mainnet",
-              "signerId": "0s30ab575c90996519c2ea8dfbf7dbad6c7da23fa9",
-              "createdAt": "2026-11-24T07:05:43Z",
-              "timeoutSecs": 600
+              "signerId": "0sa2f3f42f19dcdc2c4aa06ff5ff0e72e1db48bc21",
+              "createdAt": "2026-11-24T08:25:09Z",
+              "timeoutSecs": 60
             },
             "primaryType": "WalletMessage"
           },
@@ -244,26 +244,26 @@
         },
         "preview": {
           "grant": {
-            "grant_id": "2d592d8ffb34fdda8f5c16e4494398bbea79a3b0fb9d6e0492b705f6bea462f1",
+            "grant_id": "e4673287f1ba14f58c36799c623a14dc88a16311d062388348ecf1d11cc39d0c",
             "owner_message": {
               "label": "first grant",
-              "nonce": "01598cfadd881d0b498cf3667f83900081b4f190900af16bcb3bd9bb73760222",
+              "nonce": "b0bfb5a32dfc2d1ff17f5bfb828794f6728ef267cf1d2bcf8f5e210db19f534a",
               "owner": {
                 "type": "evm",
-                "address": "0xfccf8c0395191406727615d338b618fcf135dc29",
+                "address": "0x2107fecfdb6ce6e584726fff902d27dbdcef6804",
                 "chain_id": 1,
-                "public_key": "0x476042492b94799e59ed312acfe131d3d10d045d875e34079cca93d9c194db7f58647b72af8efd30027b38d0439c26010c7b19574a03797c3bf46053900b766c"
+                "public_key": "0x6edafa713c6ecef227f29b1ae5bb74d4eb88f40cf5c398c5b1f23b64ac49487fee8ca15b36f6f3709292e6dee80b859f5b179b2090bf2375cc2714bf056cdb2b"
               },
               "domain": "near-intents-agent-api.agent-grant.v6",
               "network": "mainnet",
-              "agent_id": "ef0fe7c6f24699b288f40e5355d13a9b5eb50a47dd6133943b12bb949b9fc82a",
+              "agent_id": "2b2d78a17bc8083e053b911c14e6d1b19883eb8d235142cce568478db46dc80d",
               "recipient": "api.test",
-              "tenant_id": "f3fa4afe8a53d770ac53825168220a87f02a48244b7b3a270440e56fd0e8b398",
+              "tenant_id": "6760a9b5433f6b9c8944eb0178c23e13914b3a2cc29fa87dc039dc14d45793cc",
               "wallet_id": "wallet-2",
               "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3",
               "owner_epoch": 1,
-              "issued_at_ms": 1795503973135,
-              "expires_at_ms": 1798095973061
+              "issued_at_ms": 1795508739287,
+              "expires_at_ms": 1798100739196
             }
           },
           "policy": {
@@ -289,12 +289,12 @@
             },
             "timelock_ms": 0
           },
-          "summary": "Create agent \"evm agent\" owned by 0xfccf8c0395191406727615d338b618fcf135dc29 and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T07:06:13.061Z. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
+          "summary": "Create agent \"evm agent\" owned by 0x2107fecfdb6ce6e584726fff902d27dbdcef6804 and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T08:25:39.196Z. If by the time this applies another agent has bound its token or the grant has expired, the agent is created without it. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
           "revision": 1,
           "policy_hash": "ce76eb49aad332cb233d08353961e290deaf97ac253a043a9ef62cb3d09e4686",
           "previous_revision": 0
         },
-        "idempotencyKey": "cf9a39cb-2c10-4c01-bd54-4da90ac7b3da"
+        "idempotencyKey": "130f9a8f-9a37-4bd4-8b5c-73c3f6a91228"
       }
     },
     {
@@ -303,8 +303,8 @@
         "name": "passkey agent",
         "owner": {
           "type": "passkey",
-          "credential_id": "IYQvnGxOvTLsSLkDaV5G46-cfw2wBSJK6leBJBb1eaA",
-          "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdjkqXIeGMshy3LSm192ZlJ7n704RSPTbrYjilhejaknEXD_jYnVBRbADVTqaH_RbOFJVSY7PE-H997b0vsTnkw",
+          "credential_id": "2gWG_4jzsI2rlPcwD_L1clqC8agVZkhhgPsIDHnNLIQ",
+          "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEG1xn8vYn2s87DteFX6PNtexKbdHc7FUWfNFj7UP-d1GfMyMY6WJcREXmbt4Z1Irsomd12_YwLBO1Sms4PUjSUQ",
           "rp_id": "partner.test",
           "origin": "https://partner.test"
         },
@@ -334,30 +334,30 @@
         "grant": {
           "label": "first grant",
           "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7",
-          "expires_at": "2026-12-24T07:06:13.061Z"
+          "expires_at": "2026-12-24T08:25:39.196Z"
         }
       },
       "generated": {
-        "correlation_id": "intent_yAwRH0ikuuFu1IxYzoS66rft5G_KAnuRyBTCbYOcLfk",
+        "correlation_id": "intent_v6oRQQtUREo93C-AY9evjb9ioQuU3s0YXDv9oWpD7Zw",
         "type": "agent_create",
-        "agent_id": "b12d256f40085f88d509bf73cd774e1091a92e70dacc0f93825e4da4751df574",
+        "agent_id": "c5a52b6c6240d5c3d6d7d519a4f4f19a24888281e5eb9c2e4d92500dc9706fa9",
         "status": "PENDING_SIGNATURE",
-        "expires_at": "2026-11-24T07:15:43.000Z",
+        "expires_at": "2026-11-24T08:26:09.000Z",
         "signer": {
           "type": "passkey",
           "rp_id": "partner.test",
           "origin": "https://partner.test",
-          "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdjkqXIeGMshy3LSm192ZlJ7n704RSPTbrYjilhejaknEXD_jYnVBRbADVTqaH_RbOFJVSY7PE-H997b0vsTnkw",
-          "credential_id": "IYQvnGxOvTLsSLkDaV5G46-cfw2wBSJK6leBJBb1eaA"
+          "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEG1xn8vYn2s87DteFX6PNtexKbdHc7FUWfNFj7UP-d1GfMyMY6WJcREXmbt4Z1Irsomd12_YwLBO1Sms4PUjSUQ",
+          "credential_id": "2gWG_4jzsI2rlPcwD_L1clqC8agVZkhhgPsIDHnNLIQ"
         },
         "intent": {
           "payload": {
             "rpId": "partner.test",
             "timeout": 120000,
-            "challenge": "xMePeULNRarHENlAIJ1lFR1WlRV-c5EeTrAKZlcCxVo",
+            "challenge": "L32jjNintj2VsvqiE7oSNVHnD-KogdpPXfaDWL7uwfw",
             "allowCredentials": [
               {
-                "id": "IYQvnGxOvTLsSLkDaV5G46-cfw2wBSJK6leBJBb1eaA",
+                "id": "2gWG_4jzsI2rlPcwD_L1clqC8agVZkhhgPsIDHnNLIQ",
                 "type": "public-key"
               }
             ],
@@ -367,27 +367,27 @@
         },
         "preview": {
           "grant": {
-            "grant_id": "9b6d725738537070054fbd36f25a0fefe1ec5e3e816d96dd842936ee42563ef7",
+            "grant_id": "fe8772a688fac3a29bba1672bbdde438f59d383b0862b26460127cba3511be62",
             "owner_message": {
               "label": "first grant",
-              "nonce": "8905a4666f283b864a3fbf5896f47805766bce5711a690f1df5c6bc4b4a7d95e",
+              "nonce": "112c08d771153a513cbb45183b4cb9be8e22ede110f11c6fa3b18416a38489cd",
               "owner": {
                 "type": "passkey",
                 "rp_id": "partner.test",
                 "origin": "https://partner.test",
-                "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdjkqXIeGMshy3LSm192ZlJ7n704RSPTbrYjilhejaknEXD_jYnVBRbADVTqaH_RbOFJVSY7PE-H997b0vsTnkw",
-                "credential_id": "IYQvnGxOvTLsSLkDaV5G46-cfw2wBSJK6leBJBb1eaA"
+                "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEG1xn8vYn2s87DteFX6PNtexKbdHc7FUWfNFj7UP-d1GfMyMY6WJcREXmbt4Z1Irsomd12_YwLBO1Sms4PUjSUQ",
+                "credential_id": "2gWG_4jzsI2rlPcwD_L1clqC8agVZkhhgPsIDHnNLIQ"
               },
               "domain": "near-intents-agent-api.agent-grant.v6",
               "network": "mainnet",
-              "agent_id": "b12d256f40085f88d509bf73cd774e1091a92e70dacc0f93825e4da4751df574",
+              "agent_id": "c5a52b6c6240d5c3d6d7d519a4f4f19a24888281e5eb9c2e4d92500dc9706fa9",
               "recipient": "api.test",
-              "tenant_id": "f3fa4afe8a53d770ac53825168220a87f02a48244b7b3a270440e56fd0e8b398",
+              "tenant_id": "6760a9b5433f6b9c8944eb0178c23e13914b3a2cc29fa87dc039dc14d45793cc",
               "wallet_id": "wallet-3",
               "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7",
               "owner_epoch": 1,
-              "issued_at_ms": 1795503973158,
-              "expires_at_ms": 1798095973061
+              "issued_at_ms": 1795508739313,
+              "expires_at_ms": 1798100739196
             }
           },
           "policy": {
@@ -413,11 +413,11 @@
             },
             "timelock_ms": 0
           },
-          "summary": "Create agent \"passkey agent\" owned by passkey IYQvnGxOvTLs… and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T07:06:13.061Z. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
+          "summary": "Create agent \"passkey agent\" owned by passkey 2gWG_4jzsI2r… and install its first policy. Also let \"first grant\" (the holder of its grant token) act on this account under its policy until 2026-12-24T08:25:39.196Z. If by the time this applies another agent has bound its token or the grant has expired, the agent is created without it. This is an experimental, mainnet-only beta service. You may lose all assets you put in this wallet, or lose access to them. Keep amounts small.",
           "revision": 1,
           "policy_hash": "ce76eb49aad332cb233d08353961e290deaf97ac253a043a9ef62cb3d09e4686",
           "wallet_request": {
-            "nonce": 3269626789,
+            "nonce": 2460368027,
             "request": {
               "external": [
                 {
@@ -426,7 +426,7 @@
                       "action": "function_call",
                       "payload": {
                         "gas": "100000000000000",
-                        "args": "eyJ3YWxsZXRfcHVia2V5IjoiZWQyNTUxOTpiNzBkNjNiZjE5Y2FlYmU5MzFmNjcwZGZlMmM0Zjg4ZTAyY2YwM2Y1ZGU1YWQwMDAwMGNjNDk5NmUwZDlhNjdiIiwiZW5jcnlwdGVkX2RhdGEiOiJleUoyWlhKemFXOXVJam94TENKallYQmhZbWxzYVhScFpYTWlPbnNpWTI5dVptbGtaVzUwYVdGc0lqcDdJbUZzYkc5M1pXUWlPblJ5ZFdVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6Wlgwc0ltTnliM056WDJOb1lXbHVYM2RwZEdoa2NtRjNJanA3SW1Gc2JHOTNaV1FpT21aaGJITmxMQ0p5WlhGMWFYSmxjMTloY0hCeWIzWmhiQ0k2Wm1Gc2MyVjlMQ0p6YVdkdVgyMWxjM05oWjJVaU9uc2lZV3hzYjNkbFpDSTZabUZzYzJVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6WlN3aVlXeHNiM2RsWkY5eVpXTnBjR2xsYm5SeklqcGJYWDBzSW5OM1lYQWlPbnNpWVd4c2IzZGxaQ0k2Wm1Gc2MyVXNJbkpsY1hWcGNtVnpYMkZ3Y0hKdmRtRnNJanBtWVd4elpYMTlMQ0ptY205NlpXNGlPbVpoYkhObExDSnlkV3hsY3lJNmV5SmhiR3h2ZDJWa1gzUnZhMlZ1Y3lJNld5SnVZWFJwZG1VaUxDSnVaWEF4TkRFNmQzSmhjQzV1WldGeUlsMHNJblJ5WVc1ellXTjBhVzl1WDNSNWNHVnpJanBiSW1sdWRHVnVkSE5mZEhKaGJuTm1aWElpTENKamIyNW1hV1JsYm5ScFlXd2lMQ0prWld4bGRHVWlYWDBzSW5kaGJHeGxkRjlwWkNJNkluZGhiR3hsZEMwekluMD0iLCJ3YWxsZXRfc2lnbmF0dXJlIjoiMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJ2ZXJzaW9uIjoxLCJsb2NrZWQiOmZhbHNlLCJ2YWxpZF91bnRpbCI6NDEwMjQ0NDgwMCwiYWdlbnRfcG9saWN5X2hhc2giOiJhMDc1YmI5NmU3MWM4MTkxZWRhNzExNjE1NzM1MWMzMDRkMTcxYzRmOWUxNzhkZjhmZDlkOWM0YzAwN2FiNjRiIiwic3RvcmFnZV9yZWZ1bmRfdG8iOiJzcG9uc29yLm5lYXIifQ==",
+                        "args": "eyJ3YWxsZXRfcHVia2V5IjoiZWQyNTUxOTpiNzBkNjNiZjE5Y2FlYmU5MzFmNjcwZGZlMmM0Zjg4ZTAyY2YwM2Y1ZGU1YWQwMDAwMGNjNDk5NmUwZDlhNjdiIiwiZW5jcnlwdGVkX2RhdGEiOiJleUoyWlhKemFXOXVJam94TENKallYQmhZbWxzYVhScFpYTWlPbnNpWTI5dVptbGtaVzUwYVdGc0lqcDdJbUZzYkc5M1pXUWlPblJ5ZFdVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6Wlgwc0ltTnliM056WDJOb1lXbHVYM2RwZEdoa2NtRjNJanA3SW1Gc2JHOTNaV1FpT21aaGJITmxMQ0p5WlhGMWFYSmxjMTloY0hCeWIzWmhiQ0k2Wm1Gc2MyVjlMQ0p6YVdkdVgyMWxjM05oWjJVaU9uc2lZV3hzYjNkbFpDSTZabUZzYzJVc0luSmxjWFZwY21WelgyRndjSEp2ZG1Gc0lqcG1ZV3h6WlN3aVlXeHNiM2RsWkY5eVpXTnBjR2xsYm5SeklqcGJYWDBzSW5OM1lYQWlPbnNpWVd4c2IzZGxaQ0k2Wm1Gc2MyVXNJbkpsY1hWcGNtVnpYMkZ3Y0hKdmRtRnNJanBtWVd4elpYMTlMQ0ptY205NlpXNGlPbVpoYkhObExDSnlkV3hsY3lJNmV5SmhiR3h2ZDJWa1gzUnZhMlZ1Y3lJNld5SnVZWFJwZG1VaUxDSnVaWEF4TkRFNmQzSmhjQzV1WldGeUlsMHNJblJ5WVc1ellXTjBhVzl1WDNSNWNHVnpJanBiSW1sdWRHVnVkSE5mZEhKaGJuTm1aWElpTENKamIyNW1hV1JsYm5ScFlXd2lMQ0prWld4bGRHVWlYWDBzSW5kaGJHeGxkRjlwWkNJNkluZGhiR3hsZEMwekluMD0iLCJ3YWxsZXRfc2lnbmF0dXJlIjoiMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJ2ZXJzaW9uIjoxLCJsb2NrZWQiOmZhbHNlLCJ2YWxpZF91bnRpbCI6NDEwMjQ0NDgwMCwiYWdlbnRfcG9saWN5X2hhc2giOiIwNmQ0ZTJkNTgzYTBmYmFjYmRjYjgyNmM5NGRhYjJiMWRmMGI3OWE5MjQzYzA0ZWEzZDgzZDhjN2NiYWEzZjU3Iiwic3RvcmFnZV9yZWZ1bmRfdG8iOiJzcG9uc29yLm5lYXIifQ==",
                         "deposit": "11900000000000000000000",
                         "function_name": "store_wallet_policy"
                       }
@@ -437,26 +437,26 @@
               ]
             },
             "chain_id": "mainnet",
-            "signer_id": "0s38a389b73bccef13693e9b0a90a1644b029cd090",
-            "created_at": "2026-11-24T07:05:43Z",
-            "timeout_secs": 600
+            "signer_id": "0s1ec473b24f5738666c49bec4113a6961a092994d",
+            "created_at": "2026-11-24T08:25:09Z",
+            "timeout_secs": 60
           },
           "previous_revision": 0
         },
-        "idempotencyKey": "cbf44b88-9dbe-43ca-b392-688d987c4e0a"
+        "idempotencyKey": "e41f414c-e120-4c59-b9f1-674b66dc346c"
       }
     }
   ],
   "without": {
-    "correlation_id": "intent_N9A9ijwslXTKxEvTU0zZoxCn4d0iA1CH0jUGrE6FSgE",
+    "correlation_id": "intent_ZJPfTpegbWSYv6MwgtWMGoMXeABUWd-ETKFPVipYDgg",
     "type": "agent_create",
-    "agent_id": "8b2523108438242d9d8fa2a65fe7ecb46dcae5d01243aaa55fb97cfd22af1537",
+    "agent_id": "6586d20a09c5aae7f0b3b95163673b45c40273df83b3a7e3b3f321587151f684",
     "status": "PENDING_SIGNATURE",
-    "expires_at": "2026-11-24T07:16:13.182Z",
+    "expires_at": "2026-11-24T08:26:39.339Z",
     "signer": {
       "type": "near",
       "account_id": "owner.near",
-      "public_key": "ed25519:GLhz1E3UEYBWUwAfVheM2JDqsLihw8bwdUNZTB8rQyq4"
+      "public_key": "ed25519:Btd8PXviPpV5QiwFd1uacRVhy945ETbxVeezTcAafoh"
     },
     "intent": {
       "payload": {
@@ -472,7 +472,7 @@
                 "wallet_pubkey": "ed25519:adde36644d93aedeb591b5d07224fb9135a80e1770b022eff0d9133793189d3a",
                 "encrypted_data": "eyJ2ZXJzaW9uIjoxLCJjYXBhYmlsaXRpZXMiOnsiY29uZmlkZW50aWFsIjp7ImFsbG93ZWQiOnRydWUsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZX0sImNyb3NzX2NoYWluX3dpdGhkcmF3Ijp7ImFsbG93ZWQiOmZhbHNlLCJyZXF1aXJlc19hcHByb3ZhbCI6ZmFsc2V9LCJzaWduX21lc3NhZ2UiOnsiYWxsb3dlZCI6ZmFsc2UsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZSwiYWxsb3dlZF9yZWNpcGllbnRzIjpbXX0sInN3YXAiOnsiYWxsb3dlZCI6ZmFsc2UsInJlcXVpcmVzX2FwcHJvdmFsIjpmYWxzZX19LCJmcm96ZW4iOmZhbHNlLCJydWxlcyI6eyJhbGxvd2VkX3Rva2VucyI6WyJuYXRpdmUiLCJuZXAxNDE6d3JhcC5uZWFyIl0sInRyYW5zYWN0aW9uX3R5cGVzIjpbImludGVudHNfdHJhbnNmZXIiLCJjb25maWRlbnRpYWwiLCJkZWxldGUiXX0sIndhbGxldF9pZCI6IndhbGxldC00In0=",
                 "wallet_signature": "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
-                "agent_policy_hash": "1c633cec08b7292bf809480233426340b37ea6ca00d081d2fd844b9693d239da",
+                "agent_policy_hash": "ad53a1abeb0f8cbbbc71b2cf92789a20b994233c0ebd6da349dba89284baeecb",
                 "storage_refund_to": "sponsor.near"
               },
               "deposit": "11900000000000000000000",
@@ -513,6 +513,6 @@
       "policy_hash": "ce76eb49aad332cb233d08353961e290deaf97ac253a043a9ef62cb3d09e4686",
       "previous_revision": 0
     },
-    "idempotencyKey": "9f4df677-acbe-4a1e-b70b-d8f3b806653e"
+    "idempotencyKey": "281b0af6-adaa-4500-8da9-cd79ebc58686"
   }
 }

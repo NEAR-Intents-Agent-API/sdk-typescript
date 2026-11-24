@@ -1500,7 +1500,7 @@ export interface components {
                     /** @enum {string} */
                     credential_type: "token" | "oidc" | "public_key";
                 } | null;
-                grant_install: ("installed" | "refused:grant_credential_reused") | null;
+                grant_install: ("installed" | "refused:grant_credential_reused" | "refused:grant_expired") | null;
             };
         } | {
             correlation_id: string;
