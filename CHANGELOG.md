@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.5 (2026-11-24)
+
+Create an agent and its first grant with one owner signature (near/near-intents-agent-api#213,
+#217; API release 1.3.0). Types regenerated from API main (513fd89a). Additive: nothing a 0.9.4
+caller does changes. The new `grant` needs an API with #213.
+
+- `agent_create` takes an optional `grant` with the same terms as `grant_issue` (`label`,
+  `credential`, `expires_at`). The grant is hashed into the policy commitment the owner signs, so
+  one signature creates the agent and authorizes the grant. `preview.grant` echoes it, and passkey
+  previews carry `preview.wallet_request`.
+- New: `verifyAgentCreateIntent(generated, { grant })` throws `AgentCreateVerificationError` unless
+  the signed hash commits to exactly `preview.policy` and the grant you asked for (NEAR, EVM and
+  passkey owners). Check it on your backend before the wallet signs: NEAR and EVM wallets show the
+  owner only the hash. `agentCreateCommitment`, `walletRequestChallenge` and
+  `serializeWalletRequestMessage` are exported for custom checks.
+- `agent_create` status details carry `grant_install`: `"installed"`,
+  `"refused:grant_credential_reused"` (another onboarding bound the token first) or
+  `"refused:grant_expired"`; null until activation. The agent is created either way; start it only
+  on `"installed"`.
+- `listGrants` shows such a grant with `issued_via: { type: "agent_create", transaction_hash,
+  policy_revision: 1, policy_commitment }`.
+- Withdrawal previews can warn `provider_would_refuse`: the wallet provider's own dry run would
+  refuse the withdrawal, its reason in `detail`.
+- `sign-message` on EVM and Solana always refuses NEAR Intents payloads
+  (`intents_payload_use_sign_intent`); the deployment switch that allowed them is gone.
+
 ## 0.9.4 (2026-11-19)
 
 Approval votes report a reject that OutLayer only recorded (near/near-intents-agent-api#190).

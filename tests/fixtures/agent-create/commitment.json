@@ -1,0 +1,49 @@
+{
+  "tenantId": "tenant",
+  "agentId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "policy": {
+    "frozen": false,
+    "actions": [
+      "transfer"
+    ],
+    "confidential": true,
+    "owner_approval": false,
+    "assets": [
+      "nep141:wrap.near"
+    ],
+    "limits": {},
+    "max_actions_per_hour": null,
+    "destinations": {
+      "mode": "only",
+      "list": []
+    },
+    "budget": {
+      "daily_usd": null,
+      "weekly_usd": null,
+      "monthly_usd": null
+    },
+    "timelock_ms": 0
+  },
+  "grant": {
+    "domain": "near-intents-agent-api.agent-grant.v6",
+    "owner": {
+      "type": "near",
+      "account_id": "owner.near",
+      "public_key": "ed25519:11111111111111111111111111111111"
+    },
+    "tenant_id": "tenant",
+    "agent_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "wallet_id": "wallet.near",
+    "label": "first grant",
+    "credential": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "network": "mainnet",
+    "issued_at_ms": 1,
+    "expires_at_ms": 2,
+    "owner_epoch": 1,
+    "nonce": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recipient": "api.test"
+  },
+  "policy_commitment": "74444f2ecd7f8496e3557d0138e3e86f25ea4cb0b70a644a357c1c97af141562",
+  "commitment": "ca2cfa4c963ebaca7c7e38352b32803df5797221266d8c187f957edc6dac6ccd",
+  "commitment_without_grant": "74444f2ecd7f8496e3557d0138e3e86f25ea4cb0b70a644a357c1c97af141562"
+}
