@@ -16,21 +16,11 @@ export type TdReport = {
   mrSeam: Uint8Array;
   tdAttributes: Uint8Array;
   reportData: Uint8Array;
-  /** Present on TD 1.5 reports only. */
   teeTcbSvn2: Uint8Array | undefined;
   mrServiceTd: Uint8Array | undefined;
 };
 
-/**
- * The Intel quote inside a dstack attestation. The legacy SCALE form is variant `V0`, then the
- * quote variant, `DstackTdx` or on Google Cloud `DstackGcpTdx`, each of which opens with the quote
- * as a SCALE `Vec<u8>` (dstack-attest `LegacyVersionedAttestation`, `AttestationQuote`, `TdxQuote`,
- * `DstackGcpTdxQuote`); dstack 0.5 emits it, and so does dstack 0.6.1 on Google Cloud. dstack's
- * simulator, and dstack 0.6 once any runtime event is V2, emit the msgpack `AttestationV1` map,
- * whose platform is `{kind: "tdx", data: {quote}}` (dstack-attest `VersionedAttestation::to_bytes`).
- * On Google Cloud that kind is `gcp-tdx` and the data also carries the vTPM quote; the TDX quote is
- * read from both, as dstack's own `PlatformEvidence::tdx_quote` does.
- */
+/** dstack emits legacy SCALE (V0) or msgpack AttestationV1 attestations; both forms must be read. */
 export function attestedQuote(attestation: Uint8Array): Uint8Array {
   const first = attestation[0] ?? 0;
   if ((first >= 0x80 && first <= 0x8f) || first === 0xde || first === 0xdf)
@@ -74,7 +64,6 @@ function compactLength(bytes: Uint8Array, at: number) {
   }
 }
 
-/** The TD report of a version 4 or 5 TDX quote, as dcap-qvl `Quote::decode` reads it. */
 export function tdReport(quote: Uint8Array): TdReport {
   const view = new DataView(quote.buffer, quote.byteOffset, quote.byteLength);
   if (quote.length < HEADER_BYTES) throw new Error("quote is truncated");

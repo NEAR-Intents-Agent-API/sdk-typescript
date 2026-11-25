@@ -7,7 +7,7 @@ import { type ProofNodes, rehash } from "./proof.js";
 
 export const TILE_HEIGHT = 8;
 export const TILE_WIDTH = 256;
-export const MAX_TILE_LEVEL = 63;
+const MAX_TILE_LEVEL = 63;
 
 export type TileId = { readonly level: number; readonly index: bigint };
 
@@ -60,7 +60,7 @@ export function hashFromTile(row: Uint8Array, node: NodeId): Uint8Array {
   return subtreeHash(row.subarray((index << level) * HASH_SIZE, end));
 }
 
-export function tileOf(node: NodeId): TileId {
+function tileOf(node: NodeId): TileId {
   const level = node.level % TILE_HEIGHT;
   return {
     level: (node.level - level) / TILE_HEIGHT,
@@ -120,11 +120,6 @@ export function entryBundlePath(index: bigint, width: number): string {
   return `tile/entries/${indexPath(index, width)}`;
 }
 
-/**
- * Tessera's `garbageCollect`: for each entry bundle that is full at `published`, starting at
- * `collected`, the prefixes holding its obsolete partial bundles and level 0 tiles, plus those of
- * every parent tile it completes. Returns where the next run starts.
- */
 export function obsoletePartials(collected: bigint, published: bigint, maxBundles: number) {
   if (collected % BigInt(TILE_WIDTH) !== 0n)
     throw new RangeError(`collected size ${collected} is not a whole number of bundles`);

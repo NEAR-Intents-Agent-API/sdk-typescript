@@ -8,7 +8,6 @@ import { parseHash, parseUint64 } from "./framing.js";
 import { COSIGNATURE_V1, ED25519, NoteError, type NoteVerifier, parseVerifierKey } from "./note.js";
 import { verifySignedCheckpoint, verifyTlogProof } from "./tlog-proof.js";
 
-/** The `getOperationProof` response, as the API serves it. */
 export type OperationProofDocument = {
   readonly agent_id: string;
   readonly correlation_id: string;
@@ -44,30 +43,20 @@ export type ProvenEvent = {
   readonly index: bigint;
   readonly fields: AuditFields;
   readonly checkpoint: Checkpoint;
-  /** The notary's cosignature time, in seconds since the Unix epoch. */
   readonly cosignedAt: bigint;
-  /** The result the event recorded, as committed by `evidenceHash`; null when none was served. */
   readonly evidence: unknown;
 };
 
 export type VerifiedOperation = {
   /** Persist only after verifying this boot's attestation against the expected deployment. */
   readonly checkpoint: Checkpoint;
-  /** Hex `report_data` that a genuine TDX quote from the notary's birth must carry. */
   readonly birthReportData: string | null;
   readonly proven: readonly ProvenEvent[];
   readonly pending: number;
   readonly unlogged: number;
 };
 
-/**
- * Checks an operation proof without trusting the API: every `PROVEN` event's opening hashes to a
- * leaf the checkpoint includes, the checkpoint carries both notary signatures, and the opening
- * describes this operation's event of this agent. The caller pins `origin`, checks that
- * `agent_id` and `correlation_id` are the ones it asked for, and must still check
- * `birthReportData` against the notary's TDX quote, which is what ties the keys to attested code.
- * `trusted` must come from independently retained state or a trusted witness, never this response.
- */
+/** Trusts nothing in the response: the caller pins origin and checks birthReportData vs the TDX quote. */
 export function verifyOperationProof(
   document: OperationProofDocument,
   origin: string,

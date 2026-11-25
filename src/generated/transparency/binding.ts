@@ -20,7 +20,6 @@ export function sponsorReportData(accountId: string, publicKeys: readonly string
   return keysReportData(SPONSOR_DOMAIN, [accountId, ...publicKeys]);
 }
 
-/** Commits the backup service's age recipient and manifest signer to the quote carrying them. */
 export function backupReportData(recipient: string, signer: string): Uint8Array {
   return keysReportData(BACKUP_DOMAIN, [recipient, signer]);
 }

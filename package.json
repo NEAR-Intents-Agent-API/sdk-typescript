@@ -1,6 +1,6 @@
 {
   "name": "@near-intents-agent-api/sdk",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Typed server-side HTTP client for the NEAR Intents Agent API",
   "license": "MIT",
   "repository": {

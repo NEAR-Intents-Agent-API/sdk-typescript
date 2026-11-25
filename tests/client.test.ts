@@ -19,6 +19,9 @@ import {
   type PolicyAction,
   type QuoteResponse,
   type StatusResponseOf,
+  type SwapRequest,
+  type VerifiedPayment,
+  type WithdrawRequest,
 } from "../src/index.js";
 
 const apiKey = "test-partner-api-key";
@@ -644,4 +647,49 @@ test("wire types carry error layers, available balances and expected_amount_out"
   assert.equal(warning.length, 5);
   assert.equal(details.amount_out, undefined);
   assert.equal(layers.length, 8);
+});
+
+test("swap and withdraw types take exact input or exact output, never both", () => {
+  const exactIn: SwapRequest = { origin_asset: "a", destination_asset: "b", amount: "10" };
+  const exactOut: SwapRequest = {
+    origin_asset: "a",
+    destination_asset: "b",
+    amount_out: "5",
+    max_amount_in: "11",
+  };
+  // @ts-expect-error exact output needs max_amount_in
+  const noCeiling: SwapRequest = { origin_asset: "a", destination_asset: "b", amount_out: "5" };
+  const withdrawal: WithdrawRequest = {
+    asset: "a",
+    amount: "10",
+    min_amount_out: "9",
+    chain: "eth",
+    recipient: "0x0",
+  };
+  const memo: WithdrawRequest = {
+    asset: "a",
+    amount: "1",
+    chain: "near",
+    recipient: "b",
+    // @ts-expect-error withdraw takes no memo
+    memo: "m",
+  };
+  const quote: QuoteResponse["quote"] = { amount_in: "10", min_amount_out: "4" };
+  const warnings: QuoteResponse["warnings"][number]["code"][] = [
+    "below_min_amount_out",
+    "above_max_amount_in",
+  ];
+  const spent: Pick<ExecutionDetails, "amount_in" | "quote"> = { amount_in: "10", quote };
+  const paid: Pick<VerifiedPayment, "amount" | "amountOut" | "maxAmountIn"> = {
+    amountOut: "5",
+    maxAmountIn: "11",
+  };
+  assert.deepEqual(
+    [exactIn.amount, exactOut.max_amount_in, noCeiling.origin_asset, withdrawal.min_amount_out],
+    ["10", "11", "a", "9"],
+  );
+  assert.equal(memo.chain, "near");
+  assert.equal(warnings.length, 2);
+  assert.equal(spent.amount_in, "10");
+  assert.equal(paid.amount, undefined);
 });

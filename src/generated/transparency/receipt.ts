@@ -2,6 +2,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { auditLeaf, decodeAuditOpening } from "./audit.js";
+import { readBoundedBody } from "./bounded-body.js";
 import { type Checkpoint, validateCheckpoint } from "./checkpoint.js";
 import { parseJson, present, record } from "./fields.js";
 import { parseUint64 } from "./framing.js";
@@ -20,21 +21,12 @@ import {
 } from "./tiles.js";
 import { verifyInclusion } from "./verify.js";
 
-/**
- * Proof that one execution settled, for whoever the payer hands it to. It is its own leaf of the
- * log, written with the settlement and committing to nothing but the terms below, the execution's
- * id and the time: it names no tenant, agent, account, key or grant, so receipts cannot be linked
- * to each other or to the payer. It carries no inclusion path or checkpoint; `verifyReceipt`
- * rebuilds inclusion from the log's tiles against a checkpoint the verifier trusts.
- */
+/** Names no tenant, agent, account, key or grant, so receipts cannot be linked to each other. */
 export type Receipt = {
   readonly version: 1;
   readonly origin: string;
-  /** Decimal. */
   readonly leaf_index: string;
-  /** The leaf's opening as text: the prefix line, then its canonical JSON. */
   readonly opening: string;
-  /** The settled terms the opening commits to, as canonical JSON. */
   readonly terms: string;
 };
 
@@ -47,10 +39,8 @@ export const hashFields = [
   "receipt_hash",
 ] as const;
 
-/** The execution types that settle with a receipt, by the API's public type names. */
 export type ReceiptType = "transfer" | "withdraw" | "swap" | "limit_order" | "deposit";
 
-/** The settlement identifiers the provider reported, in the API's public field names. */
 export type SettlementHashes = { readonly [K in (typeof hashFields)[number]]?: string };
 
 export type TransferTerms = SettlementHashes & {
@@ -62,32 +52,43 @@ export type TransferTerms = SettlementHashes & {
   readonly reference?: string;
 };
 
-export type WithdrawTerms = SettlementHashes & {
-  readonly type: "withdraw";
-  readonly asset: string;
-  readonly amount: string;
-  readonly recipient: string;
-  readonly confidential: boolean;
-  readonly chain: string;
-  /** As requested; an explicit empty memo stays `""`. */
-  readonly memo?: string;
-  readonly reference?: string;
-  /** What the provider reported delivering, in the destination's units, when it reported it. */
-  readonly amount_out?: string;
-};
+/**
+ * Exact input names `amount` (the debit) and may report the delivered `amount_out`; exact output
+ * names `amount_out` (delivered exactly) and `max_amount_in` (the most it could spend), no `amount`.
+ */
+export type QuotedTerms =
+  | {
+      readonly amount: string;
+      readonly min_amount_out?: string;
+      readonly amount_out?: string;
+      readonly max_amount_in?: undefined;
+    }
+  | {
+      readonly amount?: undefined;
+      readonly min_amount_out?: undefined;
+      readonly amount_out: string;
+      readonly max_amount_in: string;
+    };
 
-export type SwapTerms = SettlementHashes & {
-  readonly type: "swap";
-  readonly origin_asset: string;
-  readonly destination_asset: string;
-  readonly amount: string;
-  readonly min_amount_out?: string;
-  readonly confidential: boolean;
-  /** What the swap delivered, atomic units of `destination_asset`, when the provider reported it. */
-  readonly amount_out?: string;
-};
+export type WithdrawTerms = SettlementHashes &
+  QuotedTerms & {
+    readonly type: "withdraw";
+    readonly asset: string;
+    readonly recipient: string;
+    readonly confidential: boolean;
+    readonly chain: string;
+    readonly memo?: string;
+    readonly reference?: string;
+  };
 
-/** A placed order: funded and resting under `order_id`. Its fills are read from the order itself. */
+export type SwapTerms = SettlementHashes &
+  QuotedTerms & {
+    readonly type: "swap";
+    readonly origin_asset: string;
+    readonly destination_asset: string;
+    readonly confidential: boolean;
+  };
+
 export type LimitOrderTerms = SettlementHashes & {
   readonly type: "limit_order";
   readonly origin_asset: string;
@@ -102,10 +103,7 @@ export type LimitOrderTerms = SettlementHashes & {
   readonly amount_out?: string;
 };
 
-/**
- * Funds that arrived at the deposit address and were credited. It names neither who sent them nor
- * the address: the bridge's public status ties a deposit address to the account it credits.
- */
+/** Names neither sender nor deposit address; bridge public status links the address to the account. */
 export type DepositTerms = SettlementHashes & {
   readonly type: "deposit";
   readonly origin_asset: string;
@@ -116,7 +114,6 @@ export type DepositTerms = SettlementHashes & {
   readonly amount_out?: string;
 };
 
-/** What a receipt commits to, in the API's public field names. */
 export type ReceiptTerms =
   | TransferTerms
   | WithdrawTerms
@@ -125,11 +122,7 @@ export type ReceiptTerms =
   | DepositTerms;
 export type PaymentTerms = TransferTerms | WithdrawTerms;
 
-/**
- * Reads one tile of the log by its tlog-tiles path; null when the log does not serve it (404).
- * Throw `LogUnavailableError` when the log cannot be read right now. A tile the trusted tree must
- * contain that reads null is treated the same way: the log is behind or failing, not the receipt.
- */
+/** A tile the trusted tree must contain but cannot be read is a log failure, never an invalid receipt. */
 export type TileReader = (path: string) => Promise<Uint8Array | null>;
 
 export type ExpectedPayment = {
@@ -137,52 +130,43 @@ export type ExpectedPayment = {
   /** The asset as requested. A NEAR withdrawal to chain `near` delivers native NEAR either way. */
   readonly asset: string;
   /**
-   * The amount the payer sent, atomic units of `asset`. A transfer delivers exactly this. A
-   * withdrawal is debited this and delivers it less the network or bridge fee, in the destination
-   * chain's units: a withdrawal receipt proves the debit, never what arrived.
+   * Exact input: the debit. A withdrawal delivers less after fees, so such a receipt proves the
+   * debit only. Give this or `amount_out`, not both.
    */
-  readonly amount: string;
+  readonly amount?: string;
+  /** Exact output (withdrawals only): the amount the recipient was paid exactly. */
+  readonly amount_out?: string;
   readonly reference: string;
-  /**
-   * Omit to accept a confidential payment only, the account's default. A payment from the legacy
-   * public balance (a withdrawal sent with `confidential: false`) is accepted only with `false`.
-   */
+  /** Omitted accepts confidential only; a public-balance withdrawal matches only confidential: false. */
   readonly confidential?: boolean;
-  /** A withdrawal's chain. Omit for a transfer: a withdrawal never satisfies an expectation without one. */
   readonly chain?: string;
-  /** A withdrawal's memo, exactly as requested, `""` included. Omitted means none was sent. */
   readonly memo?: string;
 };
 
-/** What the receipt's leaf commits to; nothing here comes from the API unverified. */
 export type VerifiedReceipt = {
   /** The execution's id: accept each once. It is random per execution and names no payer. */
   readonly correlationId: string;
-  /** When the API recorded the settlement. */
   readonly settledAt: string;
   readonly terms: ReceiptTerms;
   readonly leafIndex: bigint;
 };
 
-/** A verified transfer or withdrawal; nothing here comes from the API unverified. */
 export type VerifiedPayment = {
-  /** The execution's id: accept each once. It is random per execution and names no payer. */
   readonly correlationId: string;
   readonly type: PaymentTerms["type"];
-  /** When the API recorded the settlement. */
   readonly settledAt: string;
   readonly recipient: string;
   readonly asset: string;
-  readonly amount: string;
+  /** Exact input: the debit, so confirm arrival separately. Absent for exact output. */
+  readonly amount?: string;
   readonly reference: string;
   readonly confidential: boolean;
   readonly chain?: string;
   readonly memo?: string;
-  /**
-   * A withdrawal only: what the provider reported delivering, in the destination's units, when it
-   * reported it. `amount` is the debit; confirm what arrived here or on the destination chain.
-   */
+  /** Exact output: what was paid exactly. Exact input: the reported delivery, if any. */
   readonly amountOut?: string;
+  /** Exact output: the most the payment could spend. */
+  readonly maxAmountIn?: string;
   readonly intentHash?: string;
   readonly transferIntentHash?: string;
   readonly txHash?: string;
@@ -192,10 +176,7 @@ export type VerifiedPayment = {
   readonly leafIndex: bigint;
 };
 
-/**
- * The trusted checkpoint does not cover the receipt's leaf yet. The receipt may well be valid:
- * fetch a newer trusted checkpoint and verify again.
- */
+/** Uncovered leaf is not invalid: fetch a newer trusted checkpoint and verify again. */
 export class ReceiptNotCoveredError extends Error {
   constructor(
     readonly leafIndex: bigint,
@@ -206,10 +187,7 @@ export class ReceiptNotCoveredError extends Error {
   }
 }
 
-/**
- * The log did not serve a tile the trusted tree must contain: a network failure, a timeout, an
- * HTTP error, or a tile not there yet. It says nothing about the receipt: verify again later.
- */
+/** The log failing to serve a required tile says nothing about the receipt; verify again later. */
 export class LogUnavailableError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -217,22 +195,19 @@ export class LogUnavailableError extends Error {
   }
 }
 
-/** The leaf the API writes beside a settled execution's own event: its receipt. */
 export const RECEIPT_EVENT = "execute.receipt";
-/** Every field of a receipt leaf's opening, besides its salt. */
 const openingFields = ["action", "createdAt", "evidenceHash", "resourceId"];
 const FULL_TILE = TILE_WIDTH * HASH_SIZE;
 
-/** Each type's own text fields: the ones it always has, then the ones it may have. */
 const termFields: Record<ReceiptType, readonly [readonly string[], readonly string[]]> = {
   transfer: [["asset", "amount", "recipient"], ["reference"]],
   withdraw: [
-    ["asset", "amount", "recipient", "chain"],
-    ["reference", "amount_out"],
+    ["asset", "recipient", "chain"],
+    ["reference", "amount", "min_amount_out", "amount_out", "max_amount_in"],
   ],
   swap: [
-    ["origin_asset", "destination_asset", "amount"],
-    ["min_amount_out", "amount_out"],
+    ["origin_asset", "destination_asset"],
+    ["amount", "min_amount_out", "amount_out", "max_amount_in"],
   ],
   limit_order: [
     ["origin_asset", "destination_asset", "amount", "side", "price", "quantity", "order_id"],
@@ -241,17 +216,13 @@ const termFields: Record<ReceiptType, readonly [readonly string[], readonly stri
   deposit: [["origin_asset"], ["destination_asset", "amount", "deposited_amount", "amount_out"]],
 };
 
-/**
- * A receipt names something to look its settlement up by. Which identifier settles which route is
- * the API's completion rule, applied before the leaf is written: the leaf itself is that verdict.
- */
+/** The API applies the completion rule before writing the leaf; the verifier does not re-check it. */
 function settled(terms: ReceiptTerms) {
   const named = terms as Readonly<Record<string, unknown>>;
   if (![...hashFields, "order_id"].some((field) => named[field] !== undefined))
     throw new NoteError("the receipt names no settlement");
 }
 
-/** Every other field is one of the type's own, as non-empty text, and none it must have is missing. */
 function namedFields(
   type: string,
   fields: Record<string, unknown>,
@@ -266,12 +237,20 @@ function namedFields(
     if (fields[field] === undefined) throw new NoteError(`the ${type} names no ${field}`);
   if (type === "limit_order" && fields.side !== "sell" && fields.side !== "buy")
     throw new NoteError("the limit_order's side is unknown");
+  if (type === "withdraw" || type === "swap") quotedFields(type, fields);
 }
 
-/**
- * Reads the terms a receipt commits to, refusing anything else: an unknown type or field, a
- * missing or empty one, or terms that name no settlement of their type.
- */
+/** Exactly one of exact input (`amount`) or exact output (`amount_out` with `max_amount_in`). */
+function quotedFields(type: string, fields: Record<string, unknown>) {
+  const exactOutput = fields.max_amount_in !== undefined;
+  if (exactOutput === (fields.amount !== undefined))
+    throw new NoteError(`the ${type} names neither or both of amount and max_amount_in`);
+  if (exactOutput && fields.amount_out === undefined)
+    throw new NoteError(`the ${type} names max_amount_in without amount_out`);
+  if (exactOutput && fields.min_amount_out !== undefined)
+    throw new NoteError(`the ${type}'s min_amount_out is not allowed`);
+}
+
 export function parseReceiptTerms(terms: string): ReceiptTerms {
   const { type, confidential, memo, ...rest } = record(parseJson(terms), "receipt terms");
   const spec = typeof type === "string" && Object.hasOwn(termFields, type) ? type : undefined;
@@ -292,15 +271,7 @@ export function parseReceiptTerms(terms: string): ReceiptTerms {
   return read;
 }
 
-/**
- * Checks a receipt without trusting its source or the API: its opening is a leaf of the tree
- * `trusted` commits to, rebuilt from the log's own tiles; the opening is a receipt leaf; and the
- * terms it commits to are a settled execution's, which it returns typed. `trusted` must come from
- * a trusted witness or independently retained state, never from the receipt's source. A receipt
- * newer than `trusted` throws `ReceiptNotCoveredError`, and a log that does not answer, or does
- * not serve a tile its tree must contain, throws `LogUnavailableError`: verify those again later.
- * A `NoteError` or `ProofError` means the receipt does not prove a settled execution.
- */
+/** trusted must come from a witness or retained state, never from the receipt's source. */
 export async function verifyReceipt(
   receipt: Receipt,
   options: { readonly origin: string; readonly trusted: Checkpoint; readonly readTile: TileReader },
@@ -340,13 +311,7 @@ export async function verifyReceipt(
   };
 }
 
-/**
- * Checks a receipt as `verifyReceipt` does, then that it is a transfer or withdrawal of exactly
- * `expect`. An incomplete `expect` throws `TypeError` before anything is read; any other type of
- * execution, or another payment, throws `NoteError`. `amount` is what the payer sent: a transfer
- * delivers it whole, a withdrawal delivers it less fees, so a payee owed an exact amount by
- * withdrawal confirms the arrival itself, from `amountOut` when reported or on the chain.
- */
+/** A withdrawal delivers less than the debit, so an exact-amount payee must confirm arrival itself. */
 export async function verifyPaymentReceipt(
   receipt: Receipt,
   options: {
@@ -365,9 +330,20 @@ export async function verifyPaymentReceipt(
   if (terms.reference === undefined) throw new NoteError("the payment names no reference");
   const chain = terms.type === "withdraw" ? terms.chain : undefined;
   const memo = terms.type === "withdraw" ? terms.memo : undefined;
-  // `chain` and `memo` compare absent to absent: no chain means a transfer, no memo means none.
-  const actual = { ...terms, chain, memo };
-  for (const field of ["recipient", "asset", "amount", "reference", "chain", "memo"] as const)
+  const maxAmountIn = terms.type === "withdraw" ? terms.max_amount_in : undefined;
+  // Exact output is owed amount_out; a reported amount_out of exact input proves no delivery.
+  const paidOut =
+    terms.type === "withdraw" && terms.max_amount_in !== undefined ? terms.amount_out : undefined;
+  const actual = { ...terms, chain, memo, amount_out: paidOut };
+  for (const field of [
+    "recipient",
+    "asset",
+    "amount",
+    "amount_out",
+    "reference",
+    "chain",
+    "memo",
+  ] as const)
     if (actual[field] !== expect[field])
       throw new NoteError(`the payment's ${field} is not the expected one`);
   if (terms.confidential !== (expect.confidential ?? true))
@@ -378,13 +354,14 @@ export async function verifyPaymentReceipt(
     settledAt: verified.settledAt,
     recipient: terms.recipient,
     asset: terms.asset,
-    amount: terms.amount,
     reference: terms.reference,
     confidential: terms.confidential,
     ...present({
+      amount: terms.amount,
       chain,
       memo,
       amountOut: terms.type === "withdraw" ? terms.amount_out : undefined,
+      maxAmountIn,
       intentHash: terms.intent_hash,
       transferIntentHash: terms.transfer_intent_hash,
       txHash: terms.tx_hash,
@@ -396,14 +373,17 @@ export async function verifyPaymentReceipt(
   };
 }
 
-/** Refuses an expectation a JavaScript caller left incomplete, before it can match anything. */
 function checkExpected(expect: ExpectedPayment) {
   if (typeof expect !== "object" || expect === null)
     throw new TypeError("expect must describe the payment");
-  for (const field of ["recipient", "asset", "amount", "reference"] as const)
-    if (typeof expect[field] !== "string" || expect[field] === "")
-      throw new TypeError(`expect.${field} must be a non-empty string`);
-  if (expect.chain !== undefined && (typeof expect.chain !== "string" || expect.chain === ""))
+  const amounts = (["amount", "amount_out"] as const).filter(
+    (field) => expect[field] !== undefined,
+  );
+  if (amounts.length !== 1)
+    throw new TypeError("expect must give exactly one of amount and amount_out");
+  for (const field of ["recipient", "asset", "reference", ...amounts] as const)
+    if (!nonEmpty(expect[field])) throw new TypeError(`expect.${field} must be a non-empty string`);
+  if (expect.chain !== undefined && !nonEmpty(expect.chain))
     throw new TypeError("expect.chain must be a non-empty string when given");
   if (expect.memo !== undefined && typeof expect.memo !== "string")
     throw new TypeError("expect.memo must be a string when given");
@@ -411,10 +391,11 @@ function checkExpected(expect: ExpectedPayment) {
     throw new TypeError("expect.confidential must be a boolean when given");
 }
 
-/**
- * The receipt's opening, when it is a receipt leaf committing these terms and nothing more: an
- * opening with any other field is another kind of leaf, whatever it calls itself.
- */
+function nonEmpty(value: unknown): boolean {
+  return typeof value === "string" && value !== "";
+}
+
+/** Identified by exact opening fields; any extra field means another leaf kind, whatever it is called. */
 function receiptOpening(opened: string, terms: string) {
   const opening = utf8ToBytes(opened);
   const { fields } = decodeAuditOpening(opening);
@@ -427,10 +408,7 @@ function receiptOpening(opened: string, terms: string) {
   return { opening, fields: { resourceId, createdAt } };
 }
 
-/**
- * A tile at its width in the trusted tree. A partial tile the log collected since is the prefix of
- * its full tile, which tlog-tiles lets a client read instead.
- */
+/** A partial tile is a prefix of its full tile per tlog-tiles, so the full tile is read when absent. */
 async function provenTile(readTile: TileReader, tile: TileId, size: bigint): Promise<Uint8Array> {
   const width = tileWidth(tile, size);
   const path = tilePath(tile, width);
@@ -449,7 +427,6 @@ async function provenTile(readTile: TileReader, tile: TileId, size: bigint): Pro
   return full.subarray(0, width * HASH_SIZE);
 }
 
-/** Reads hash tiles from a tlog-tiles log served over HTTPS, e.g. `https://log.agentsonintents.com/`. */
 export function logTileReader(logUrl: string): TileReader {
   const base = new URL(logUrl.endsWith("/") ? logUrl : `${logUrl}/`);
   if (base.protocol !== "https:") throw new NoteError("the log must use HTTPS");
@@ -469,28 +446,14 @@ export function logTileReader(logUrl: string): TileReader {
         throw new LogUnavailableError(`log tile ${path} unavailable: HTTP ${response.status}`);
       }
       if (!response.body) throw new LogUnavailableError(`log tile ${path} came with no body`);
-      return await readAtMost(response.body, address.width * HASH_SIZE, path);
+      return await readBoundedBody(
+        response.body,
+        address.width * HASH_SIZE,
+        () => new NoteError(`tile ${path} exceeds its size`),
+      );
     } catch (error) {
       if (error instanceof NoteError || error instanceof LogUnavailableError) throw error;
       throw new LogUnavailableError(`log tile ${path} unavailable`, { cause: error });
     }
   };
-}
-
-async function readAtMost(body: ReadableStream<Uint8Array>, limit: number, path: string) {
-  const reader = body.getReader();
-  const data = new Uint8Array(limit);
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (size + value.length > limit) throw new NoteError(`tile ${path} exceeds its size`);
-      data.set(value, size);
-      size += value.length;
-    }
-  } finally {
-    await reader.cancel();
-  }
-  return data.subarray(0, size);
 }
