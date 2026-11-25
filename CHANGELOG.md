@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `GenerateIntentResponseOf<"agent_delete">` types a NEAR owner's intent as `nep366`, the
+  delegate action the API generates. It was typed as `nep413`. Types only: no runtime change.
+
 ## 0.9.5 (2026-11-24)
 
 Create an agent and its first grant with one owner signature (near/near-intents-agent-api#213,
