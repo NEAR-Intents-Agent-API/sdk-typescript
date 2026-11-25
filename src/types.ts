@@ -93,7 +93,7 @@ export type GenerateIntentResponseOf<T extends IntentType> = T extends IntentTyp
             | "webauthn"
             | (T extends "policy_update"
                 ? "nep413" | "nep366"
-                : T extends "agent_create" | "agent_freeze" | "agent_unfreeze"
+                : T extends "agent_create" | "agent_freeze" | "agent_unfreeze" | "agent_delete"
                   ? "nep366"
                   : "nep413");
         }
