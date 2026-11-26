@@ -20,7 +20,7 @@ export function coverage(node: NodeId): [bigint, bigint] {
   return [node.index << level, (node.index + 1n) << level];
 }
 
-export function decompose(begin: bigint, end: bigint): [bigint, bigint] {
+function decompose(begin: bigint, end: bigint): [bigint, bigint] {
   if (begin < 0n || end < begin || end > UINT64_MAX)
     throw new RangeError(`invalid range [${begin}, ${end})`);
   if (begin === 0n) return [0n, end];

@@ -279,6 +279,46 @@ const fees = await assistant.withdraw(agentId, { ...withdrawal, dry: true }); //
 await assistant.withdraw(agentId, withdrawal);
 ```
 
+### Exact input or exact output
+
+`swap` and `withdraw` take one of two shapes, typed as a union:
+
+- **Exact input:** `amount`, the input spent, optionally with `min_amount_out`, the least the
+  recipient must get.
+- **Exact output:** `amount_out`, what the recipient gets exactly, with `max_amount_in`, the most
+  it may spend. Unused input returns to the balance it was spent from.
+
+```ts
+const exactOut = {
+  origin_asset: "nep141:wrap.near",
+  destination_asset: "nep141:usdt.tether-token.near",
+  amount_out: "1000000", // 1 USDT, exactly
+};
+const preview = await assistant.swap(agentId, { ...exactOut, max_amount_in: "1", dry: true });
+// Leave 0.5–1% room above the quote's input: a fresh quote at dispatch may need a little more.
+const ceiling = ((BigInt(preview.quote.amount_in ?? "0") * 101n) / 100n).toString();
+const swapped = await settled(
+  (await assistant.swap(agentId, { ...exactOut, max_amount_in: ceiling })).correlation_id,
+);
+swapped.details.amount_in; // the input it spent; the rest of the ceiling is back in the balance
+```
+
+The balance must hold all of `max_amount_in`, and the policy's limits, USD budget and action count
+charge all of it, even the part returned. The provider checks the floor or ceiling against a fresh
+quote before anything is signed: a `min_amount_out` above the quote's guaranteed output
+(`quote.min_amount_out`, not the estimate `quote.amount_out`) is refused with
+`below_min_amount_out`, and a `max_amount_in` below the quote's `amount_in` with
+`above_max_amount_in` (both 409, nothing sent; change the figure and use a new key). A dry run
+whose quote already misses the figure you sent warns with the same code. A withdrawal from the
+public balance (`confidential: false`) to chain `near` takes `amount` alone and delivers it
+exactly; `amount_out` or `min_amount_out` there is `validation_failed`. `withdraw` takes no
+`memo`: no route carries one to the recipient.
+
+A dry run's `quote` and a settled request's `details.quote` carry the same figures: `amount_in`,
+`min_amount_in`, `amount_out`, `min_amount_out`, `withdraw_fee`, `refund_fee`, `amount_in_usd` and
+`amount_out_usd`, each when the provider sent it. Request amounts are digits only, with no leading
+zeros or sign.
+
 ### The confidential balance is the default
 
 The agent's account is its confidential balance, and `confidential` defaults to `true` on every
@@ -312,7 +352,8 @@ when it dispatches. `insufficient_balance` carries `error.availableAmount`, the 
 `spend_budget_exceeded`, `policy_limit_exceeded`, `policy_action_limit_exceeded`,
 `policy_usage_unavailable`, `unsupported_token`, `invalid_address`, `insufficient_balance`
 (with `available_amount`), `amount_too_low`, `policy_price_deviation_exceeded`,
-`market_price_unavailable` (the last three for limit orders), `high_fee` or `asset_delivered_as_is`. A withdrawal preview warns
+`market_price_unavailable` (the last three for limit orders), `high_fee`, `asset_delivered_as_is`,
+`provider_would_refuse`, `below_min_amount_out` or `above_max_amount_in`. A withdrawal preview warns
 about the action and the destination instead of refusing. `quote.owner_approval` is true when
 the live request would wait in `PENDING_APPROVAL` for the owner.
 
@@ -708,8 +749,8 @@ carries: `settled_at`, `usd_value?`, `note?`, `grant_id?`, `policy_epoch?`, and 
 | `type` | `details` |
 |---|---|
 | `transfer` | `asset`, `amount`, `recipient`, `confidential`, `reference?` |
-| `withdraw` | as a transfer, plus `chain`, `memo?`, `amount_out?` |
-| `swap` | `origin_asset`, `destination_asset`, `amount`, `min_amount_out?`, `confidential`, `amount_out?` |
+| `withdraw` | `asset`, `recipient`, `confidential`, `reference?`, `chain`, `memo?` (older receipts only), then `amount`, `min_amount_out?` and `amount_out?` (exact input) or `amount_out` and `max_amount_in` (exact output) |
+| `swap` | `origin_asset`, `destination_asset`, `confidential`, then `amount`, `min_amount_out?` and `amount_out?` (exact input) or `amount_out` and `max_amount_in` (exact output) |
 | `limit_order` | `origin_asset`, `destination_asset`, `amount`, `side`, `price`, `quantity`, `deadline?`, `confidential`, `order_id`, `amount_out?` |
 | `deposit` | `origin_asset`, `destination_asset?`, `amount?`, `confidential`, `deposited_amount?`, `amount_out?` |
 
@@ -769,12 +810,16 @@ withdrawal to chain `near` delivers native NEAR whatever was requested), atomic 
 `reference`, all non-empty strings; `confidential`, which defaults to `true`: only a payment from
 the confidential balance matches unless you pass `confidential: false` to accept one from the
 legacy public balance (a withdrawal sent with `confidential: false`); `chain` for a withdrawal (without
-`chain` only a transfer matches); and `memo`, exactly (without `memo`, a withdrawal with one never
-matches; an explicit empty memo matches only `memo: ""`). `amount` is what the payer sent: a
+`chain` only a transfer matches); and `memo`, exactly, for receipts of withdrawals made before the
+API stopped taking one (without `memo`, a withdrawal with one never matches). Give exactly one of
+`amount` and `amount_out`. `amount` matches an exact-input payment and is what the payer sent: a
 transfer delivers it whole, but a withdrawal delivers it less the network or bridge fee, in the
-destination chain's units, so a withdrawal receipt proves the debit, not what arrived. A payee
-owed an exact amount by withdrawal confirms the arrival from the result's `amountOut`, when the
-provider reported it, or on the destination chain by the returned hashes (`intentHash`,
+destination chain's units, so such a receipt proves the debit, not what arrived. `amount_out`
+matches an exact-output withdrawal, which paid the recipient exactly that; the result's
+`amountOut` is then that figure and `maxAmountIn` the most it could spend, and `amount` is absent.
+A payee owed an exact amount should ask for an exact-output withdrawal. Otherwise it confirms the
+arrival from the result's `amountOut`, when the provider reported it, or on the destination chain
+by the returned hashes (`intentHash`,
 `transferIntentHash`, `txHash`, `destinationTxHash`, `settlementTxHash`, `receiptHash`). A page
 of `listReceipts` may hold fewer than `limit` items while `next_cursor` is set. Issue a unique `reference` per order: the API does not check uniqueness, and the same
 receipt can be shown twice. A verified receipt proves the API logged the payment as settled on

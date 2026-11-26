@@ -2,6 +2,7 @@
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import { base64 } from "@scure/base";
+import { readBoundedBody } from "./bounded-body.js";
 import { type Checkpoint, parseCheckpoint, validateCheckpoint } from "./checkpoint.js";
 import { ED25519, NoteError, parseVerifierKey } from "./note.js";
 
@@ -103,24 +104,10 @@ export async function fetchWitnessCheckpoint(api: string, origin: string, public
   });
   if (!response.ok) throw new NoteError(`witness unavailable: ${response.status}`);
   if (!response.body) throw new NoteError("witness response missing");
-  const reader = response.body.getReader();
-  const data = new Uint8Array(16_384);
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (size + value.length > data.length) throw new NoteError("witness response exceeds limits");
-      data.set(value, size);
-      size += value.length;
-    }
-  } finally {
-    await reader.cancel();
-  }
-  return verifyWitnessHead(
-    JSON.parse(new TextDecoder().decode(data.subarray(0, size))),
-    nonce,
-    origin,
-    publicKey,
+  const data = await readBoundedBody(
+    response.body,
+    16_384,
+    () => new NoteError("witness response exceeds limits"),
   );
+  return verifyWitnessHead(JSON.parse(new TextDecoder().decode(data)), nonce, origin, publicKey);
 }

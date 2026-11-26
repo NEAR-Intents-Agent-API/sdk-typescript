@@ -340,7 +340,7 @@ export function mrConfigBindsCompose(mrConfigId: unknown, composeHash: string | 
   return isHex(composeHash, 32) && mrConfigId === `01${composeHash}${"00".repeat(15)}`;
 }
 
-export function notaryAddress(logKey: string, notaryKey: string): Uint8Array | undefined {
+function notaryAddress(logKey: string, notaryKey: string): Uint8Array | undefined {
   try {
     const log = parseVerifierKey(logKey);
     const notary = parseVerifierKey(notaryKey);

@@ -21,7 +21,6 @@ export function optionalRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** A request field as recorded; JSON `null` reads as absent. */
 export function given(value: unknown) {
   return value === null ? undefined : value;
 }
@@ -31,7 +30,6 @@ export function text(value: unknown, field: string): string {
   return value;
 }
 
-/** An optional string field: absent, JSON null or empty reads as absent, anything else must be text. */
 export function optionalText(value: unknown, field: string): string | undefined {
   const known = given(value);
   if (known === undefined) return undefined;

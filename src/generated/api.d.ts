@@ -427,7 +427,7 @@ export interface paths {
         put?: never;
         /**
          * Swap one asset for another
-         * @description Swaps on the confidential balance; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap` and `confidential`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Swaps on the confidential balance; `confidential: false` is refused with `public_balance_exit_only`, live and dry, before any provider call. A live swap requires `X-Grant-Token` for a live grant, and the account policy must allow `swap` and `confidential`. With `dry: true` it returns a quote and needs only the API key: no grant and no `Idempotency-Key`. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no quote, and an asset `GET /v1/tokens` does not list is refused with `unsupported_token` as a live swap is. The account's rules never refuse a dry swap: each one a live swap would fail (`policy_action_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount` when the balance it sells from holds less) is listed in `warnings` under the live request's code, beside `spend` (USD value and budget left) and `fee`. Send `amount` for exact input, optionally with `min_amount_out`, or `amount_out` with `max_amount_in` for exact output: the recipient gets `amount_out` exactly and unused input returns to the balance. The balance must hold all of `max_amount_in`, and limits, USD budget and actions count all of it, even the part refunded. The provider holds `min_amount_out` to a fresh quote's guaranteed output, `quote.min_amount_out` (not the estimate `quote.amount_out`), and refuses one above it with `below_min_amount_out`, and a `max_amount_in` below the quote's `amount_in` with `above_max_amount_in`, before anything is signed; a dry run's quote is an earlier one, so leave 0.5–1% room between it and a floor or ceiling; a dry run whose quote misses the floor or ceiling sent lists `below_min_amount_out` or `above_max_amount_in` in `warnings`. A dry run's `quote` carries `amount_in`, `min_amount_in`, `amount_out`, `min_amount_out` and 1Click's `withdraw_fee`, `refund_fee`, `amount_in_usd` and `amount_out_usd`; a settled request carries the quote it ran with in `details.quote` and the input it spent in `details.amount_in`; the rest of `max_amount_in` is back in the balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["swap"];
         delete?: never;
@@ -531,7 +531,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw an asset to an address on any supported chain
-         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. Both also return `recipient_storage_unregistered` (409) when a NEAR recipient lacks storage on the token's contract. Register the recipient with `storage_deposit` on that contract, then send again under a new Idempotency-Key. The account's rules never refuse a preview. It answers with `spend` (USD value and budget left), `fee` and `warnings`. For a confidential bridged withdrawal, including to `near` when 1Click lists the withdrawn asset on another chain, the fee is the USD value sent minus the USD value of `quote.amount_out` in the same-symbol destination listing. A bridged fee is null for a public route, when there is no usable `amount_out` or unique destination listing, when either asset lacks a fresh price, or when the delivery is worth more than the amount sent. For other withdrawals to `near`, the fee uses `estimated_fee` when it is zero or `fee_token` names the withdrawn asset. Otherwise it uses `amount` minus `quote.amount_out` in that asset's units. Warnings list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued), `asset_delivered_as_is` (a non-USDC asset to `hypercore`) and `provider_would_refuse` (the wallet provider's own dry run says it would refuse the withdrawal, its reason in `detail`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR is `nep141:wrap.near` (`near` and `native` are refused with `unsupported_token`); withdrawn to chain `near` it always arrives as native NEAR, from either balance. The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Pays from the confidential balance by default; `confidential: false` pays from the legacy public balance, which only a withdrawal or a shield can empty. Both live withdrawals and `dry: true` previews require `X-Grant-Token` and `Idempotency-Key`; a live withdrawal also needs an account policy allowing withdrawal to the destination. An archived, deleted or frozen account, or one whose applied policy does not parse (`policy_not_ready`), gets no preview, and an asset `GET /v1/tokens` does not list (`unsupported_token`) or a recipient that is not a valid address (`invalid_address`) is refused before any provider call, as a live withdrawal is. Both also return `recipient_storage_unregistered` (409) when a NEAR recipient lacks storage on the token's contract. Register the recipient with `storage_deposit` on that contract, then send again under a new Idempotency-Key. The account's rules never refuse a preview. It answers with `spend` (USD value and budget left), `fee` and `warnings`. For a confidential bridged withdrawal, including to `near` when 1Click lists the withdrawn asset on another chain, the fee is the USD value sent minus the USD value of `quote.amount_out` in the same-symbol destination listing. A bridged fee is null for a public route, when there is no usable `amount_out` or unique destination listing, when either asset lacks a fresh price, or when the delivery is worth more than the amount sent. For other withdrawals to `near`, the fee uses `estimated_fee` when it is zero or `fee_token` names the withdrawn asset. Otherwise it uses `amount` minus `quote.amount_out` in that asset's units. Warnings list each rule the live withdrawal would fail under its code (`policy_action_denied`, `policy_destination_denied`, `policy_asset_denied`, schedule, USD budget, per-asset limits, actions per hour, `policy_usage_unavailable` when unreconciled history keeps the limits from being judged, or `insufficient_balance` with `available_amount`) beside `high_fee` (above 5%, only where `fee` is valued), `asset_delivered_as_is` (a non-USDC asset to `hypercore`) and `provider_would_refuse` (the wallet provider's own dry run says it would refuse the withdrawal, its reason in `detail`). Identical previews reuse a result for 60 seconds; an expired preview needs a new key. The API sets no preview cap; each preview that reaches the provider counts toward the wallet's 1,000 custody operations per rolling 24 hours (`provider_limit_reached`). NEAR is `nep141:wrap.near` (`near` and `native` are refused with `unsupported_token`); withdrawn to chain `near` it always arrives as native NEAR, from either balance. Send `amount` for exact input, optionally with `min_amount_out`, or `amount_out` with `max_amount_in` for exact output: the recipient gets `amount_out` exactly and unused input returns to the balance. A withdrawal from the public balance (`confidential: false`) to chain `near` takes `amount` alone and delivers it exactly; `amount_out` or `min_amount_out` there is `validation_failed`, live and dry, before any provider call. The balance must hold all of `max_amount_in`, and limits, USD budget and actions count all of it, even the part refunded. The provider holds `min_amount_out` to a fresh quote's guaranteed output, `quote.min_amount_out` (not the estimate `quote.amount_out`), and refuses one above it with `below_min_amount_out`, and a `max_amount_in` below the quote's `amount_in` with `above_max_amount_in`, before anything is signed; a dry run's quote is an earlier one, so leave 0.5–1% room between it and a floor or ceiling; a dry run whose quote misses the floor or ceiling sent lists `below_min_amount_out` or `above_max_amount_in` in `warnings`. A dry run's `quote` carries `amount_in`, `min_amount_in`, `amount_out`, `min_amount_out` and 1Click's `withdraw_fee`, `refund_fee`, `amount_in_usd` and `amount_out_usd`; a settled request carries the quote it ran with in `details.quote` and the input it spent in `details.amount_in`; the rest of `max_amount_in` is back in the balance. No route carries a recipient memo, so the body takes no `memo` (`validation_failed`). The agent's account is its confidential balance. It, and the transfers and swaps made from it, live on `intents.far`, the NEAR Intents confidential deployment on FAR: a permissioned NEAR-protocol chain run by a small validator set with no public RPC. That keeps them off the public NEAR chain. It is access control, not cryptography, and the API cannot prove it: FAR's operators and Defuse can read confidential state and grant others access, the 1Click solver layer sees each intent in plaintext, shielding and unshielding appear on the public chain, cross-chain deposits and withdrawals are public on their own chains and can be matched by amount and timing, and the agent has one confidential identity, its custody wallet. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["withdraw"];
         delete?: never;
@@ -1959,6 +1959,8 @@ export interface components {
                 asset?: string;
                 amount?: string;
                 min_amount_out?: string;
+                amount_out?: string;
+                max_amount_in?: string;
                 chain?: string;
                 recipient?: string;
                 memo?: string;
@@ -1974,6 +1976,16 @@ export interface components {
             near_account_id?: string;
             provider_request_id?: string | null;
             provider_status?: string;
+            quote?: {
+                amount_in?: string;
+                min_amount_in?: string;
+                amount_out?: string;
+                min_amount_out?: string;
+                withdraw_fee?: string;
+                refund_fee?: string;
+                amount_in_usd?: string;
+                amount_out_usd?: string;
+            };
             confidential?: boolean;
             chain?: string;
             execute_after?: string;
@@ -1983,6 +1995,7 @@ export interface components {
             tx_hash?: string | null;
             destination_tx_hash?: string | null;
             amount_out?: string | null;
+            amount_in?: string;
             expected_amount_out?: string;
             deposit_address?: string | null;
             memo?: string | null;
@@ -2086,6 +2099,15 @@ export interface components {
             /** @enum {string} */
             type: "swap" | "withdraw" | "limit_order";
             quote: {
+                amount_in?: string;
+                min_amount_in?: string;
+                amount_out?: string;
+                min_amount_out?: string;
+                withdraw_fee?: string;
+                refund_fee?: string;
+                amount_in_usd?: string;
+                amount_out_usd?: string;
+            } & {
                 [key: string]: unknown;
             };
             spend: {
@@ -2099,7 +2121,7 @@ export interface components {
             } | null;
             warnings: {
                 /** @enum {string} */
-                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "approval_backlog_full" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is" | "provider_would_refuse";
+                code: "policy_action_denied" | "policy_destination_denied" | "unsupported_token" | "invalid_address" | "insufficient_balance" | "policy_asset_denied" | "policy_transaction_limit_exceeded" | "policy_schedule_denied" | "spend_price_unavailable" | "spend_budget_exceeded" | "policy_limit_exceeded" | "policy_action_limit_exceeded" | "policy_usage_unavailable" | "approval_backlog_full" | "amount_too_low" | "policy_price_deviation_exceeded" | "market_price_unavailable" | "high_fee" | "asset_delivered_as_is" | "provider_would_refuse" | "below_min_amount_out" | "above_max_amount_in";
                 detail: string;
                 /** Format: date-time */
                 available_at?: string;
@@ -3007,13 +3029,15 @@ export interface operations {
                         status: "PROVEN" | "PENDING" | "UNLOGGED";
                         details: {
                             asset: string;
-                            amount: string;
+                            amount?: string;
                             recipient: string;
                             confidential: boolean;
                             reference?: string;
+                            min_amount_out?: string;
+                            amount_out?: string;
+                            max_amount_in?: string;
                             chain: string;
                             memo?: string;
-                            amount_out?: string;
                             settled_at: string;
                             usd_value?: string;
                             note?: string;
@@ -3043,10 +3067,11 @@ export interface operations {
                         details: {
                             origin_asset: string;
                             destination_asset: string;
-                            amount: string;
+                            amount?: string;
                             confidential: boolean;
                             amount_out?: string;
                             min_amount_out?: string;
+                            max_amount_in?: string;
                             settled_at: string;
                             usd_value?: string;
                             note?: string;
@@ -3279,13 +3304,15 @@ export interface operations {
                             status: "PROVEN" | "PENDING" | "UNLOGGED";
                             details: {
                                 asset: string;
-                                amount: string;
+                                amount?: string;
                                 recipient: string;
                                 confidential: boolean;
                                 reference?: string;
+                                min_amount_out?: string;
+                                amount_out?: string;
+                                max_amount_in?: string;
                                 chain: string;
                                 memo?: string;
-                                amount_out?: string;
                                 settled_at: string;
                                 usd_value?: string;
                                 note?: string;
@@ -3315,10 +3342,11 @@ export interface operations {
                             details: {
                                 origin_asset: string;
                                 destination_asset: string;
-                                amount: string;
+                                amount?: string;
                                 confidential: boolean;
                                 amount_out?: string;
                                 min_amount_out?: string;
+                                max_amount_in?: string;
                                 settled_at: string;
                                 usd_value?: string;
                                 note?: string;
@@ -5020,6 +5048,16 @@ export interface operations {
                     confidential?: boolean;
                     /** @default false */
                     dry?: boolean;
+                } | {
+                    origin_asset: string;
+                    destination_asset: string;
+                    amount_out: string;
+                    max_amount_in: string;
+                    note?: string;
+                    /** @default true */
+                    confidential?: boolean;
+                    /** @default false */
+                    dry?: boolean;
                 };
             };
         };
@@ -5731,9 +5769,23 @@ export interface operations {
                 "application/json": {
                     asset: string;
                     amount: string;
+                    min_amount_out?: string;
                     chain: string;
                     recipient: string;
-                    memo?: string;
+                    reference?: string;
+                    note?: string;
+                    /** @default true */
+                    confidential?: boolean;
+                    /** @default false */
+                    async?: boolean;
+                    /** @default false */
+                    dry?: boolean;
+                } | {
+                    asset: string;
+                    amount_out: string;
+                    max_amount_in: string;
+                    chain: string;
+                    recipient: string;
                     reference?: string;
                     note?: string;
                     /** @default true */
@@ -6279,7 +6331,7 @@ export interface operations {
             content: {
                 "application/json": {
                     correlation_id: string;
-                    request: {
+                    request: ({
                         origin_asset: string;
                         destination_asset: string;
                         amount: string;
@@ -6292,6 +6344,18 @@ export interface operations {
                         /** @constant */
                         type: "swap";
                     } | {
+                        origin_asset: string;
+                        destination_asset: string;
+                        amount_out: string;
+                        max_amount_in: string;
+                        note?: string;
+                        /** @default true */
+                        confidential?: boolean;
+                        /** @default false */
+                        dry?: boolean;
+                        /** @constant */
+                        type: "swap";
+                    }) | {
                         base_asset: string;
                         quote_asset: string;
                         /** @enum {string} */
@@ -6307,12 +6371,12 @@ export interface operations {
                         dry?: boolean;
                         /** @constant */
                         type: "limit_order";
-                    } | {
+                    } | ({
                         asset: string;
                         amount: string;
+                        min_amount_out?: string;
                         chain: string;
                         recipient: string;
-                        memo?: string;
                         reference?: string;
                         note?: string;
                         /** @default true */
@@ -6324,6 +6388,22 @@ export interface operations {
                         /** @constant */
                         type: "withdraw";
                     } | {
+                        asset: string;
+                        amount_out: string;
+                        max_amount_in: string;
+                        chain: string;
+                        recipient: string;
+                        reference?: string;
+                        note?: string;
+                        /** @default true */
+                        confidential?: boolean;
+                        /** @default false */
+                        async?: boolean;
+                        /** @default false */
+                        dry?: boolean;
+                        /** @constant */
+                        type: "withdraw";
+                    }) | {
                         asset: string;
                         amount: string;
                         recipient: string;

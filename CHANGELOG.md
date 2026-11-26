@@ -1,7 +1,35 @@
 # Changelog
 
-## Unreleased
+## 0.9.6 (2026-11-26)
 
+Exact-output swaps and withdrawals, output floors and input ceilings checked against a fresh
+quote, and stricter request validation. Breaking: `withdraw` no longer takes `memo`, and
+`VerifiedPayment.amount` is optional.
+
+- `swap` and `withdraw` take exact input (`amount`, optionally `min_amount_out`; `withdraw` takes
+  `min_amount_out` now too) or exact output (`amount_out` with `max_amount_in`). The request types
+  are a union of the two. Limits, USD budget, held spend and the balance check count all of
+  `max_amount_in`; unused input returns to the balance it was spent from.
+- New refusal `above_max_amount_in` (409): a `max_amount_in` below a fresh quote's `amount_in`.
+  `below_min_amount_out` is now a clean 409 refusal too, judged against the quote's guaranteed
+  `min_amount_out`. Both send nothing. Dry runs warn with either code when their quote already
+  misses the figure sent.
+- Dry-run `quote` and a result's `details.quote` are typed with the provider's figures:
+  `amount_in`, `min_amount_in`, `amount_out`, `min_amount_out`, `withdraw_fee`, `refund_fee`,
+  `amount_in_usd`, `amount_out_usd`. A settled exact-output request carries `details.amount_in`,
+  the input it spent.
+- Breaking: `withdraw` takes no `memo` (`validation_failed`); no route carried it. A withdrawal
+  from the public balance to chain `near` takes `amount` alone (`amount_out` or `min_amount_out`
+  there is `validation_failed`). Request amounts must be digits only, with no leading zeros.
+- A result's `details.amount_out` is the delivery 1Click reported at settlement; until then the
+  estimate is `details.expected_amount_out`. An exact-output swap or withdrawal completes only on a
+  reported delivery of at least `amount_out`; less stops for review (`amount_out_below_minimum`).
+- `recover` takes the same exact-input or exact-output swap and withdraw bodies.
+- Receipts: withdrawal and swap terms are exact input (`amount`, with `min_amount_out` when one was
+  sent) or exact output (`amount_out` and `max_amount_in`). An exact-output receipt is issued only
+  for a reported delivery of `amount_out`. `verifyPaymentReceipt` takes `expect.amount_out` for an
+  exact-output withdrawal; `VerifiedPayment.amount` is optional and `maxAmountIn` is new.
+- Generated transparency verifier refreshed from API main (`bounded-body.ts` added).
 - `GenerateIntentResponseOf<"agent_delete">` types a NEAR owner's intent as `nep366`, the
   delegate action the API generates. It was typed as `nep413`. Types only: no runtime change.
 

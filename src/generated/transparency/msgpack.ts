@@ -11,7 +11,6 @@ export type MsgpackValue =
 const MAX_DEPTH = 32;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
-/** A strict MessagePack reader: string map keys only, no repeats, ext, float or trailing bytes. */
 export function decodeMsgpack(bytes: Uint8Array): MsgpackValue {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let at = 0;
