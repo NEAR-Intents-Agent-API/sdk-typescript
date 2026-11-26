@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.6 (unreleased)
+## 0.9.6 (2026-11-26)
 
 Exact-output swaps and withdrawals, output floors and input ceilings checked against a fresh
 quote, and stricter request validation. Breaking: `withdraw` no longer takes `memo`, and
