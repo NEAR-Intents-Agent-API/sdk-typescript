@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.8 (unreleased)
+
+The fresh quote's figure on a missed floor or ceiling (near/agent-api#248). Types regenerated from
+API main (c23f3a89).
+
+- `AgentApiError.quotedMinAmountOut` (on `below_min_amount_out`) and `quotedAmountIn` (on
+  `above_max_amount_in`) carry the provider's fresh quote figure from `meta`, in atomic units, when
+  it states one. A FAILED request keeps them in `details.quoted_min_amount_out` and
+  `details.quoted_amount_in`.
+- README: leave 0.5–1% room below a dry run's `min_amount_out` (above its `amount_in`), more for a
+  request a timelock or owner approval holds; an omitted floor is the fresh quote's own.
+- Ondo tokenized stocks (BSC) and Earn vault tokens are ordinary asset ids on the confidential
+  balance (near/agent-api#245); no SDK change was needed.
+
 ## 0.9.7 (2026-11-27)
 
 Partner grant revoke, passkey consent preimages and owner-signed single payouts for `sign-intent`

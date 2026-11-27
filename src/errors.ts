@@ -55,7 +55,10 @@ export class AgentApiResponseTooLargeError extends Error {
  * states one. `availableAmount`, on `insufficient_balance`, is the balance the request could
  * spend, after queued or timelocked work, in atomic units. On `custody_native_balance_required`
  * they are what the agent's NEAR account holds (`availableAmount`) and what the call costs
- * (`minAmount`), in yoctoNEAR.
+ * (`minAmount`), in yoctoNEAR. `quotedMinAmountOut`, on `below_min_amount_out`, is the guaranteed
+ * output of the provider's fresh quote, and `quotedAmountIn`, on `above_max_amount_in`, the input
+ * that quote needs, both in atomic units when the provider states them: a gap of a few units from
+ * your floor or ceiling is price drift, a large one a real move.
  */
 export class AgentApiError extends Error {
   readonly status: number;
@@ -68,6 +71,8 @@ export class AgentApiError extends Error {
   readonly retryAfterSeconds: number | undefined;
   readonly minAmount: string | undefined;
   readonly availableAmount: string | undefined;
+  readonly quotedMinAmountOut: string | undefined;
+  readonly quotedAmountIn: string | undefined;
   readonly requestId: string | undefined;
   readonly errors: ApiErrorObject[];
   readonly idempotencyKey: string | undefined;
@@ -91,6 +96,8 @@ export class AgentApiError extends Error {
     this.retryAfterSeconds = retryAfterSeconds(retryAfter);
     this.minAmount = first?.meta?.min_amount;
     this.availableAmount = first?.meta?.available_amount;
+    this.quotedMinAmountOut = first?.meta?.quoted_min_amount_out;
+    this.quotedAmountIn = first?.meta?.quoted_amount_in;
     this.requestId = document?.meta?.request_id;
     this.errors = document?.errors ?? [];
     this.idempotencyKey = idempotencyKey;

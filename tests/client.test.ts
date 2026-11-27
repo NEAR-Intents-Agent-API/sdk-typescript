@@ -443,6 +443,47 @@ test("error layer and retryable come from the first error; an absent flag reads 
   }
 });
 
+test("a missed floor or ceiling exposes the fresh quote's figure", async () => {
+  const cases = [
+    { code: "below_min_amount_out", meta: { retryable: false, quoted_min_amount_out: "3619998" } },
+    { code: "above_max_amount_in", meta: { retryable: false, quoted_amount_in: "1000004" } },
+  ] as const;
+  for (const expected of cases) {
+    const api = new AgentApi({
+      baseUrl: "https://api.test",
+      apiKey,
+      fetch: async () =>
+        Response.json(
+          {
+            errors: [
+              {
+                status: "409",
+                code: expected.code,
+                layer: "request",
+                title: "Refused",
+                meta: expected.meta,
+              },
+            ],
+          },
+          { status: 409 },
+        ),
+    });
+    await assert.rejects(api.getAgent(agentId), (error: unknown) => {
+      assert.ok(error instanceof AgentApiError);
+      assert.equal(error.code, expected.code);
+      assert.equal(
+        error.quotedMinAmountOut,
+        "quoted_min_amount_out" in expected.meta ? expected.meta.quoted_min_amount_out : undefined,
+      );
+      assert.equal(
+        error.quotedAmountIn,
+        "quoted_amount_in" in expected.meta ? expected.meta.quoted_amount_in : undefined,
+      );
+      return true;
+    });
+  }
+});
+
 test("a public request is refused with public_balance_exit_only; the SDK adds no confidential field", async () => {
   const calls: { url: URL; body: unknown }[] = [];
   const api = new AgentApi({

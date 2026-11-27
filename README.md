@@ -320,7 +320,13 @@ charge all of it, even the part returned. The provider checks the floor or ceili
 quote before anything is signed: a `min_amount_out` above the quote's guaranteed output
 (`quote.min_amount_out`, not the estimate `quote.amount_out`) is refused with
 `below_min_amount_out`, and a `max_amount_in` below the quote's `amount_in` with
-`above_max_amount_in` (both 409, nothing sent; change the figure and use a new key). A dry run
+`above_max_amount_in` (both 409, nothing sent; change the figure and use a new key). The refusal
+states the fresh quote's figure, `error.quotedMinAmountOut` or `error.quotedAmountIn`, when the
+provider gives one: a gap of a few units is price drift, a large one a real move. A dry run's quote
+is an earlier one, so leave 0.5–1% room below its `min_amount_out` (or above its `amount_in`), and
+more for a request a timelock or owner approval holds, since it is quoted when it releases and
+fails for good on a miss. Without `min_amount_out` the floor is the fresh quote's own
+`min_amount_out`, set by the provider's slippage tolerance. A dry run
 whose quote already misses the figure you sent warns with the same code. A withdrawal from the
 public balance (`confidential: false`) to chain `near` takes `amount` alone and delivers it
 exactly; `amount_out` or `min_amount_out` there is `validation_failed`. `withdraw` takes no
