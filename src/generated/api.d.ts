@@ -11,7 +11,7 @@ export interface paths {
         put?: never;
         /**
          * Generate an owner intent for signing
-         * @description Builds the exact payload the owner's wallet must sign for one owner action and returns it as `intent: {standard, payload}`. Sign `intent.payload` unchanged with the wallet named by `standard`, then call submit-intent with the wallet's output. `agent_create` creates a pending agent and returns its id; with `grant` the same signature also authorizes its first grant.
+         * @description Builds the exact payload the owner's wallet must sign for one owner action and returns it as `intent: {standard, payload}`. Sign `intent.payload` unchanged with the wallet named by `standard`, then call submit-intent with the wallet's output. `agent_create` creates a pending agent and returns its id; with `grant` the same signature also authorizes its first grant. `payout_authorize` lets the agent's EVM or Solana key (`key`) pay one 1Click deposit through sign-intent that `sign_intent.receivers` and `withdrawals` do not allow; see sign-intent. A passkey signs only a hash, so a `webauthn` intent returns exactly what its challenge hashes: `preview.wallet_request`, where challenge = base64url(sha3_256("NEAR_WALLET_CONTRACT/V1" || borsh(wallet_request))), or `preview.offchain_message`, where challenge = base64url(sha3_256("NEAR_NEP641_OFFCHAIN_MESSAGE/V1" || borsh(offchain_message))) with borsh(offchain_message) = chain_id (string), signer_id (string), path (list of strings: u32 count, then each string; 0 when absent), timestamp (u64 nanoseconds since the Unix epoch) and payload (string), where a string is a u32 byte length then its UTF-8 bytes and integers are little-endian, and `payload` is the text a NEAR owner signs as the `nep413` `message`: for `approval_vote` the plain string `verdict:approval_id:wallet_pubkey:request_hash` (not JSON; compare the whole string), otherwise canonical JSON. Exactly one preimage comes with a `webauthn` intent and none with any other standard. Recompute the challenge and check the content against your request before the owner signs.
          */
         post: operations["generateIntent"];
         delete?: never;
@@ -282,6 +282,46 @@ export interface paths {
         get: operations["listGrants"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/grants/{grant_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke one grant with the API key
+         * @description The partner that holds the agent can revoke any of its grants without the owner: grants are API records, so no wallet signature is involved, and revoking only removes authority (issuing a new grant still needs the owner). The grant's `revoked_reason` reads `partner_revoked`, where an owner's `grant_revoke` reads `owner_revoked`. New requests are refused at once: with the grant's token or one of its sessions as `agent_grant_required` (403), with an `X-Grant-Proof` for it as `grant_proof_invalid` (401). `committed_correlation_ids` lists operations already committed to dispatch, to monitor with `GET /v1/status`: most still complete, but one waiting for owner approval with no vote recorded fails with `authorization_stale`. `committed_cancellations` lists limit-order cancels that may still reach the provider, as in the `grant_revoke` status (`committed_truncated` is true when more than 100 exist). A grant that is already revoked, or has expired, answers 200 unchanged. `grant_not_found` means no grant with this ID belongs to this agent. Works on archived agents; a deleted agent is `agent_deleted` (409). Any API key of the partner can do this to any grant of any of its agents, so hold the key as the emergency stop it is and keep it out of workloads and CI. Freezing stays an owner intent.
+         */
+        post: operations["revokeGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agents/{agent_id}/grants/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke every live grant on the agent with the API key
+         * @description Revokes each grant on the agent that is neither revoked nor expired, in one transaction, exactly as `revokeGrant` does for one (`revoked_reason` `partner_revoked`; the owner's wallet and policy are untouched). `data` lists the grants this call revoked, newest first, and is empty when none was live; the committed work is reported across all of them.
+         */
+        post: operations["revokeAllGrants"];
         delete?: never;
         options?: never;
         head?: never;
@@ -751,7 +791,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a NEAR Intents transfer payload with the agent's EVM key
-         * @description Needs `native.evm.sign_intent`; `sign_message` does not open it. Signs `payload` as an ERC-191 message with the key behind `wallet.evm_account_id`, which, as a lowercase `0x` address (the spelling NEAR Intents uses), must be the payload `signer_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "erc191", payload, signature }` with the signature as `secp256k1:` and base58: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Needs `native.evm.sign_intent`; `sign_message` does not open it. Signs `payload` as an ERC-191 message with the key behind `wallet.evm_account_id`, which, as a lowercase `0x` address (the spelling NEAR Intents uses), must be the payload `signer_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. The owner can allow one payout outside those lists without changing the policy: generate a `payout_authorize` intent `{ agent_id, key: "evm" | "solana", payout: { origin_asset, amount_in, destination_asset, min_amount_out, recipient, recipient_type }, valid_until }` (at least 5 minutes and at most 24 hours ahead), have the owner sign it and submit it (status `PROCESSING` while unused; submitting while the account is frozen or the key's `sign_intent` is off is refused `wallet_frozen` or `native_method_denied`), then send its `correlation_id` as `payout_authorization_id`. One deposit in the payload must then pay out exactly those terms: the quote's `originAsset`, `destinationAsset` and `recipientType` equal, its `recipient` equal (on another chain, on the chain 1Click lists `destination_asset` on, which the owner signs, compared in canonical spelling), its `amountIn` at most `amount_in` and its `minAmountOut` at least `min_amount_out` (`policy_destination_denied` at `/payout_authorization_id` otherwise). That deposit skips `receivers`, `withdrawals` and `one_click_deposits`; the quote signature, refund, deposit type, `max_slippage_bps` and payment checks still apply, and other deposits in the payload are judged as usual. Before the provider signs, the authorization is bound to that exact payload and grant, so it pays one payload: the identical request under the same grant signs it again until `valid_until` (recovering a lost response; NEAR Intents executes it once by its nonce), and a signature is released only before `valid_until`. Its status turns `SUCCESS` with the signature's correlation id as `details.signed_correlation_id`, and it turns `FAILED` with `payout_authorization_expired` if unused by `valid_until`, `payout_authorization_voided` if an applied policy freezes the account or switches that key's `sign_intent` off before a signature is released (a later unfreeze or switch-on does not revive it), or `payout_authorization_refused` if the provider definitively refuses the payload it is bound to. One that is unknown, unsigned, used for another payload or grant, expired, for the other key or signed by a previous owner is `payout_authorization_invalid`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address, or, under a `payout_authorization_id`, the authorized payout. With a `payout_authorization_id` the `deadline` must also be no later than the authorization's `valid_until` (`intents_deadline_invalid` at `/payload/deadline`), so no payload signed under it can be published after `valid_until`. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "erc191", payload, signature }` with the signature as `secp256k1:` and base58: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeEvmSignIntent"];
         delete?: never;
@@ -831,7 +871,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a NEAR Intents transfer payload with the agent's Solana key
-         * @description Needs `native.solana.sign_intent`; `sign_message` does not open it. Signs the UTF-8 bytes of `payload` with the agent's Ed25519 key. The payload's `signer_id` must be that key's NEAR Intents account, the lowercase hex of the 32-byte key behind `wallet.solana_account_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "raw_ed25519", payload, public_key, signature }` with both keys in `ed25519:` and base58 form: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
+         * @description Needs `native.solana.sign_intent`; `sign_message` does not open it. Signs the UTF-8 bytes of `payload` with the agent's Ed25519 key. The payload's `signer_id` must be that key's NEAR Intents account, the lowercase hex of the 32-byte key behind `wallet.solana_account_id` (`intents_signer_mismatch`). `payload` is the exact JSON text of a NEAR Intents payload `{ signer_id, verifying_contract, deadline, nonce, intents }`, in canonical form: `JSON.stringify` of the object, with no whitespace and no repeated or unknown keys (`intents_payload_invalid`, with the field in `source.pointer`). It signs only `transfer` intents, `{ intent, receiver_id, tokens: { <token_id>: "<amount>" }, memo?, msg?, min_gas? }` with `min_gas` within u64, or none (`intents: []`); any other intent type, such as `add_public_key`, `token_diff` or a withdrawal, is refused by name (`intents_type_forbidden`). `verifying_contract` must be `intents.near` or `intents.far` (`intents_contract_forbidden`), `deadline` an RFC 3339 UTC time ending in `Z` that is still ahead and at most 300 seconds from now unless the deposit rule below allows more (`intents_deadline_invalid`), `nonce` standard base64 of 32 bytes, and each `receiver_id` a NEAR account other than the signer and the NEAR Intents contracts. Receivers are judged by the key's own `sign_intent` rules, not by the policy's `destinations` or actions: each must be listed in `sign_intent.receivers` or be a 1Click deposit address (at most 2 per payload) proven by its quote in `one_click_quotes`: 1Click's answer to `POST /v0/quote`, sent unchanged, one per deposit address the payload pays outside `receivers` (a quote for any other address, or a second one for the same address, is `validation_failed` with its `source.pointer`). The API does not ask 1Click about the deposit: it checks the quote's `signature` against 1Click's quote-signing key (`ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc`), so a quote changed after 1Click signed it, a dry quote or a deposit address with no quote is refused. The quote's `recipient` must be, when `sign_intent.one_click_deposits` is on, the payload `signer_id` or an account in `sign_intent.receivers` with `recipientType` the contract's account type (`INTENTS`, or `CONFIDENTIAL_INTENTS` for `intents.far`), or, with `recipientType` `DESTINATION_CHAIN`, an address in `sign_intent.withdrawals` on the chain 1Click's token listing gives the quote's `destinationAsset` (compared in canonical spelling; an unreadable listing refuses with `provider_unavailable`), with the `signer_id` as `refundTo`, `refundType` and `depositType` the contract's account type, no `customRecipientMsg`, `virtualChainRecipient` or `virtualChainRefundRecipient`, and at most `sign_intent.max_slippage_bps` (0 to 300 basis points, 100 when omitted) of value lost: what the deposit returns at `minAmountOut`, valued by the quote's `amountOutUsd`, against its `amountInUsd`, so every fee and the slippage count (1Click does not sign `appFees`, so they are not read; a quote with no USD value is refused). It must be paid by one plain transfer (no `msg` or `min_gas`) of exactly the quote's `amountIn` of its `originAsset` (on `intents.far` the confidential token `imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:<originAsset>`, as 1Click generates it) and be due no later than the quote's `deadline`. A deposit 1Click has since closed is not seen; a payment into it refunds to the `signer_id`. Anything else is `policy_destination_denied`, with the reason in `detail`. The owner can allow one payout outside those lists without changing the policy: generate a `payout_authorize` intent `{ agent_id, key: "evm" | "solana", payout: { origin_asset, amount_in, destination_asset, min_amount_out, recipient, recipient_type }, valid_until }` (at least 5 minutes and at most 24 hours ahead), have the owner sign it and submit it (status `PROCESSING` while unused; submitting while the account is frozen or the key's `sign_intent` is off is refused `wallet_frozen` or `native_method_denied`), then send its `correlation_id` as `payout_authorization_id`. One deposit in the payload must then pay out exactly those terms: the quote's `originAsset`, `destinationAsset` and `recipientType` equal, its `recipient` equal (on another chain, on the chain 1Click lists `destination_asset` on, which the owner signs, compared in canonical spelling), its `amountIn` at most `amount_in` and its `minAmountOut` at least `min_amount_out` (`policy_destination_denied` at `/payout_authorization_id` otherwise). That deposit skips `receivers`, `withdrawals` and `one_click_deposits`; the quote signature, refund, deposit type, `max_slippage_bps` and payment checks still apply, and other deposits in the payload are judged as usual. Before the provider signs, the authorization is bound to that exact payload and grant, so it pays one payload: the identical request under the same grant signs it again until `valid_until` (recovering a lost response; NEAR Intents executes it once by its nonce), and a signature is released only before `valid_until`. Its status turns `SUCCESS` with the signature's correlation id as `details.signed_correlation_id`, and it turns `FAILED` with `payout_authorization_expired` if unused by `valid_until`, `payout_authorization_voided` if an applied policy freezes the account or switches that key's `sign_intent` off before a signature is released (a later unfreeze or switch-on does not revive it), or `payout_authorization_refused` if the provider definitively refuses the payload it is bound to. One that is unknown, unsigned, used for another payload or grant, expired, for the other key or signed by a previous owner is `payout_authorization_invalid`. A signed payload can be published by anyone who holds it until its `deadline`, so it may be at most 300 seconds away, except that one paying only such deposits may be due as late as their quotes, at most 96 hours ahead: 1Click's `generate-intent` writes the quote's own deadline, and a late publication can only fund a swap that pays the agent, a listed receiver or a listed withdrawal address, or, under a `payout_authorization_id`, the authorized payout. With a `payout_authorization_id` the `deadline` must also be no later than the authorization's `valid_until` (`intents_deadline_invalid` at `/payload/deadline`), so no payload signed under it can be published after `valid_until`. `assets`, `limits`, `budget`, `timelock_ms` and `schedule` do not apply. The signature the provider returns is verified against the agent key and the payload bytes before it is released; one that does not verify is discarded with 502 `provider_signature_invalid`. Bytes sent to `sign-message` that are a NEAR Intents payload are refused (`intents_payload_use_sign_intent`). A freeze refuses new payloads but cannot recall one already signed: it stays publishable until its own deadline, up to 96 hours for one paying only 1Click deposits. Answers the usual signature fields and `signed_data`, `{ standard: "raw_ed25519", payload, public_key, signature }` with both keys in `ed25519:` and base58 form: publish it as is to `intents.near` (`execute_intents`), 1Click or a solver relay. Recorded in history as type `native`, with the contract as `details.target` and the payload's hash; the payload itself is not kept. Requires `X-Grant-Token` for a live grant and is refused while the agent is frozen; `budget`, `timelock_ms`, `schedule` and `owner_approval` do not apply. Recorded in history as type `native`. Wherever `X-Grant-Token` is required, a `public_key` grant may send `X-Grant-Proof` instead (never both): a JWT its key signs for this grant ID and request (URL, method, body and Idempotency-Key). The proof is spent on first use. A retry signs a new proof for the same grant ID and Idempotency-Key. A refused proof reads `grant_proof_invalid`.
          */
         post: operations["nativeSolanaSignIntent"];
         delete?: never;
@@ -1038,6 +1078,70 @@ export interface components {
                 request_id?: string;
             };
         };
+        Intent: components["schemas"]["Nep413Intent"] | components["schemas"]["Nep366Intent"] | components["schemas"]["Eip712Intent"] | components["schemas"]["WebauthnIntent"];
+        Nep413Intent: {
+            /** @constant */
+            standard: "nep413";
+            payload: {
+                message: string;
+                recipient: string;
+                nonce: string;
+            };
+        };
+        Nep366Intent: {
+            /** @constant */
+            standard: "nep366";
+            payload: {
+                receiverId: string;
+                actions: {
+                    /** @constant */
+                    type: "FunctionCall";
+                    params: {
+                        methodName: string;
+                        args: {
+                            [key: string]: unknown;
+                        };
+                        gas: string;
+                        deposit: string;
+                    };
+                }[];
+            };
+        };
+        Eip712Intent: {
+            /** @constant */
+            standard: "eip712";
+            payload: {
+                domain: {
+                    [key: string]: unknown;
+                };
+                types: {
+                    [key: string]: {
+                        name: string;
+                        type: string;
+                    }[];
+                };
+                primaryType: string;
+                message: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        WebauthnIntent: {
+            /** @constant */
+            standard: "webauthn";
+            payload: {
+                challenge: string;
+                rpId: string;
+                allowCredentials: {
+                    id: string;
+                    /** @constant */
+                    type: "public-key";
+                }[];
+                /** @constant */
+                userVerification: "required";
+                timeout: number;
+            };
+        };
         OwnerWallet: {
             /** @constant */
             type: "near";
@@ -1161,75 +1265,39 @@ export interface components {
         GenerateIntentResponse: {
             correlation_id: string;
             /** @enum {string} */
-            type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote";
+            type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote" | "payout_authorize";
             agent_id: string;
             /** @constant */
             status: "PENDING_SIGNATURE";
             /** Format: date-time */
             expires_at: string;
             signer: components["schemas"]["OwnerWallet"];
-            intent: components["schemas"]["Intent"];
+            intent: components["schemas"]["Nep413Intent"] | components["schemas"]["Nep366Intent"] | components["schemas"]["Eip712Intent"];
             preview: components["schemas"]["IntentPreview"];
-        };
-        Intent: {
-            /** @constant */
-            standard: "nep413";
-            payload: {
-                message: string;
-                recipient: string;
-                nonce: string;
-            };
         } | {
+            correlation_id: string;
+            /** @enum {string} */
+            type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote" | "payout_authorize";
+            agent_id: string;
             /** @constant */
-            standard: "nep366";
-            payload: {
-                receiverId: string;
-                actions: {
-                    /** @constant */
-                    type: "FunctionCall";
-                    params: {
-                        methodName: string;
-                        args: {
-                            [key: string]: unknown;
-                        };
-                        gas: string;
-                        deposit: string;
-                    };
-                }[];
-            };
+            status: "PENDING_SIGNATURE";
+            /** Format: date-time */
+            expires_at: string;
+            signer: components["schemas"]["OwnerWallet"];
+            intent: components["schemas"]["WebauthnIntent"];
+            preview: components["schemas"]["WalletRequestPreview"];
         } | {
+            correlation_id: string;
+            /** @enum {string} */
+            type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote" | "payout_authorize";
+            agent_id: string;
             /** @constant */
-            standard: "eip712";
-            payload: {
-                domain: {
-                    [key: string]: unknown;
-                };
-                types: {
-                    [key: string]: {
-                        name: string;
-                        type: string;
-                    }[];
-                };
-                primaryType: string;
-                message: {
-                    [key: string]: unknown;
-                };
-            };
-        } | {
-            /** @constant */
-            standard: "webauthn";
-            payload: {
-                challenge: string;
-                rpId: string;
-                allowCredentials: {
-                    id: string;
-                    /** @constant */
-                    type: "public-key";
-                }[];
-                /** @constant */
-                userVerification: "required";
-                timeout: number;
-            };
+            status: "PENDING_SIGNATURE";
+            /** Format: date-time */
+            expires_at: string;
+            signer: components["schemas"]["OwnerWallet"];
+            intent: components["schemas"]["WebauthnIntent"];
+            preview: components["schemas"]["OffchainMessagePreview"];
         };
         IntentPreview: {
             summary: string;
@@ -1246,121 +1314,21 @@ export interface components {
                 /** @enum {string} */
                 verdict: "approve" | "reject";
             };
-            grant?: {
-                grant_id: string;
-                owner_message: {
-                    /** @constant */
-                    domain: "near-intents-agent-api.agent-grant.v6";
-                    owner: components["schemas"]["OwnerWallet"];
-                    tenant_id: string;
-                    agent_id: string;
-                    wallet_id: string;
-                    label: string;
-                    credential: string | {
-                        /** @constant */
-                        type: "oidc";
-                        issuer: string & (unknown & unknown);
-                        audience: string;
-                        claims: {
-                            [key: string]: string;
-                        };
-                        jwks?: {
-                            keys: ({
-                                /** @constant */
-                                kty: "RSA";
-                                n: string;
-                                e: string;
-                                /** @enum {string} */
-                                alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
-                                kid?: string;
-                                /** @constant */
-                                use?: "sig";
-                            } | {
-                                /** @constant */
-                                kty: "EC";
-                                /** @enum {string} */
-                                crv: "P-256" | "P-384";
-                                x: string;
-                                y: string;
-                                /** @enum {string} */
-                                alg?: "ES256" | "ES384";
-                                kid?: string;
-                                /** @constant */
-                                use?: "sig";
-                            } | {
-                                /** @constant */
-                                kty: "OKP";
-                                /** @constant */
-                                crv: "Ed25519";
-                                x: string;
-                                /** @enum {string} */
-                                alg?: "EdDSA" | "Ed25519";
-                                kid?: string;
-                                /** @constant */
-                                use?: "sig";
-                            })[];
-                        };
-                    } | {
-                        /** @constant */
-                        type: "public_key";
-                        jwk: {
-                            /** @constant */
-                            kty: "OKP";
-                            /** @constant */
-                            crv: "Ed25519";
-                            x: string;
-                        } | {
-                            /** @constant */
-                            kty: "EC";
-                            /** @constant */
-                            crv: "P-256";
-                            x: string;
-                            y: string;
-                        };
-                    };
-                    /** @constant */
-                    network: "mainnet";
-                    issued_at_ms: number;
-                    expires_at_ms: number;
-                    owner_epoch: number;
-                    nonce: string;
-                    recipient: string;
-                };
-            };
-            wallet_request?: {
-                /** @constant */
-                pay_for_gas?: false;
-                /** @constant */
-                chain_id: "mainnet";
-                signer_id: string;
-                nonce: number;
+            payout?: {
+                origin_asset: string;
+                amount_in: string;
+                destination_asset: string;
+                min_amount_out: string;
+                recipient: string;
+                /** @enum {string} */
+                recipient_type: "DESTINATION_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
+                /** @enum {string} */
+                key: "evm" | "solana";
+                chain: string | null;
                 /** Format: date-time */
-                created_at: string;
-                timeout_secs: number;
-                request: {
-                    external: {
-                        receiver_id: string;
-                        refund_to?: string;
-                        actions: ({
-                            /** @constant */
-                            action: "transfer";
-                            payload: {
-                                amount: string;
-                            };
-                        } | {
-                            /** @constant */
-                            action: "function_call";
-                            payload: {
-                                function_name: string;
-                                args?: string;
-                                deposit?: string;
-                                gas?: string;
-                                gas_weight?: string;
-                            };
-                        })[];
-                    }[];
-                };
+                valid_until: string;
             };
+            grant?: components["schemas"]["CreateGrant"];
         };
         DeletionPreview: {
             near_account_id: string;
@@ -1391,6 +1359,194 @@ export interface components {
             open_limit_orders: number;
             /** @enum {string} */
             retirement: "provider_delete" | "credential_erase";
+        };
+        CreateGrant: {
+            grant_id: string;
+            owner_message: {
+                /** @constant */
+                domain: "near-intents-agent-api.agent-grant.v6";
+                owner: components["schemas"]["OwnerWallet"];
+                tenant_id: string;
+                agent_id: string;
+                wallet_id: string;
+                label: string;
+                credential: string | {
+                    /** @constant */
+                    type: "oidc";
+                    issuer: string & (unknown & unknown);
+                    audience: string;
+                    claims: {
+                        [key: string]: string;
+                    };
+                    jwks?: {
+                        keys: ({
+                            /** @constant */
+                            kty: "RSA";
+                            n: string;
+                            e: string;
+                            /** @enum {string} */
+                            alg?: "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        } | {
+                            /** @constant */
+                            kty: "EC";
+                            /** @enum {string} */
+                            crv: "P-256" | "P-384";
+                            x: string;
+                            y: string;
+                            /** @enum {string} */
+                            alg?: "ES256" | "ES384";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        } | {
+                            /** @constant */
+                            kty: "OKP";
+                            /** @constant */
+                            crv: "Ed25519";
+                            x: string;
+                            /** @enum {string} */
+                            alg?: "EdDSA" | "Ed25519";
+                            kid?: string;
+                            /** @constant */
+                            use?: "sig";
+                        })[];
+                    };
+                } | {
+                    /** @constant */
+                    type: "public_key";
+                    jwk: {
+                        /** @constant */
+                        kty: "OKP";
+                        /** @constant */
+                        crv: "Ed25519";
+                        x: string;
+                    } | {
+                        /** @constant */
+                        kty: "EC";
+                        /** @constant */
+                        crv: "P-256";
+                        x: string;
+                        y: string;
+                    };
+                };
+                /** @constant */
+                network: "mainnet";
+                issued_at_ms: number;
+                expires_at_ms: number;
+                owner_epoch: number;
+                nonce: string;
+                recipient: string;
+            };
+        };
+        WalletRequestPreview: {
+            summary: string;
+            revision?: number;
+            previous_revision?: number;
+            policy_hash?: string;
+            policy?: components["schemas"]["Policy"];
+            deletion?: components["schemas"]["DeletionPreview"];
+            approval?: {
+                /** Format: uuid */
+                approval_id: string;
+                request_type: string;
+                request_hash: string;
+                /** @enum {string} */
+                verdict: "approve" | "reject";
+            };
+            payout?: {
+                origin_asset: string;
+                amount_in: string;
+                destination_asset: string;
+                min_amount_out: string;
+                recipient: string;
+                /** @enum {string} */
+                recipient_type: "DESTINATION_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
+                /** @enum {string} */
+                key: "evm" | "solana";
+                chain: string | null;
+                /** Format: date-time */
+                valid_until: string;
+            };
+            grant?: components["schemas"]["CreateGrant"];
+            wallet_request: components["schemas"]["WalletRequestMessage"];
+        };
+        WalletRequestMessage: {
+            /** @constant */
+            pay_for_gas?: false;
+            /** @constant */
+            chain_id: "mainnet";
+            signer_id: string;
+            nonce: number;
+            /** Format: date-time */
+            created_at: string;
+            timeout_secs: number;
+            request: {
+                external: {
+                    receiver_id: string;
+                    refund_to?: string;
+                    actions: ({
+                        /** @constant */
+                        action: "transfer";
+                        payload: {
+                            amount: string;
+                        };
+                    } | {
+                        /** @constant */
+                        action: "function_call";
+                        payload: {
+                            function_name: string;
+                            args?: string;
+                            deposit?: string;
+                            gas?: string;
+                            gas_weight?: string;
+                        };
+                    })[];
+                }[];
+            };
+        };
+        OffchainMessagePreview: {
+            summary: string;
+            revision?: number;
+            previous_revision?: number;
+            policy_hash?: string;
+            policy?: components["schemas"]["Policy"];
+            deletion?: components["schemas"]["DeletionPreview"];
+            approval?: {
+                /** Format: uuid */
+                approval_id: string;
+                request_type: string;
+                request_hash: string;
+                /** @enum {string} */
+                verdict: "approve" | "reject";
+            };
+            payout?: {
+                origin_asset: string;
+                amount_in: string;
+                destination_asset: string;
+                min_amount_out: string;
+                recipient: string;
+                /** @enum {string} */
+                recipient_type: "DESTINATION_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
+                /** @enum {string} */
+                key: "evm" | "solana";
+                chain: string | null;
+                /** Format: date-time */
+                valid_until: string;
+            };
+            grant?: components["schemas"]["CreateGrant"];
+            offchain_message: components["schemas"]["OffchainMessage"];
+        };
+        OffchainMessage: {
+            /** @constant */
+            chain_id: "mainnet";
+            signer_id: string;
+            /** Format: date-time */
+            timestamp: string;
+            payload: string;
+            path?: string[];
         };
         SignedData: {
             /** @constant */
@@ -1695,6 +1851,82 @@ export interface components {
                 repeat_required: boolean | null;
                 /** @constant */
                 confirmation?: "cancellation_observed";
+            };
+        } | {
+            correlation_id: string;
+            agent_id: string | null;
+            /** @enum {string} */
+            status: "PENDING_SIGNATURE" | "QUEUED" | "PENDING_APPROVAL" | "PENDING_DEPOSIT" | "PROCESSING" | "SUCCESS" | "REFUNDED" | "FAILED" | "UNCERTAIN" | "NEEDS_REVIEW";
+            failure_code: string | null;
+            created_at: string;
+            updated_at: string;
+            dispatch_committed_at: string | null;
+            grant: {
+                id: string;
+                label: string;
+            } | null;
+            /** @constant */
+            type: "payout_authorize";
+            details: {
+                valid_until: string | null;
+                signed_correlation_id: string | null;
+                message: {
+                    /** @constant */
+                    domain: "near-intents-agent-api.owner-admin.v2";
+                    owner: components["schemas"]["OwnerWallet"];
+                    tenant_id: string;
+                    agent_id: string;
+                    /** @constant */
+                    network: "mainnet";
+                    owner_epoch: number;
+                    target_id: string;
+                    recipient: string;
+                    nonce: string;
+                    issued_at_ms: number;
+                    expires_at_ms: number;
+                    /** @constant */
+                    action: "authorize_payout";
+                    /** @enum {string} */
+                    key: "evm" | "solana";
+                    payout: {
+                        origin_asset: string;
+                        amount_in: string;
+                        destination_asset: string;
+                        min_amount_out: string;
+                        recipient: string;
+                        /** @enum {string} */
+                        recipient_type: "DESTINATION_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
+                        chain?: string;
+                    };
+                    valid_until_ms: number;
+                } | null;
+                proof: ({
+                    signature: string;
+                } | {
+                    authentication: {
+                        id: string;
+                        rawId: string;
+                        /** @constant */
+                        type: "public-key";
+                        response: {
+                            clientDataJSON: string;
+                            authenticatorData: string;
+                            signature: string;
+                            userHandle?: string;
+                        };
+                        clientExtensionResults: {
+                            [key: string]: unknown;
+                        };
+                        /** @enum {string} */
+                        authenticatorAttachment?: "platform" | "cross-platform";
+                    };
+                } | {
+                    walletAuthorization: string;
+                }) | null;
+                verification: {
+                    block_hash: string;
+                    wallet_account_id: string;
+                } | null;
             };
         } | {
             correlation_id: string;
@@ -2336,6 +2568,23 @@ export interface operations {
                     approval_id: string;
                     /** @enum {string} */
                     verdict: "approve" | "reject";
+                } | {
+                    /** @constant */
+                    type: "payout_authorize";
+                    agent_id: string;
+                    /** @enum {string} */
+                    key: "evm" | "solana";
+                    payout: {
+                        origin_asset: string;
+                        amount_in: string;
+                        destination_asset: string;
+                        min_amount_out: string;
+                        recipient: string;
+                        /** @enum {string} */
+                        recipient_type: "DESTINATION_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
+                    };
+                    /** Format: date-time */
+                    valid_until: string;
                 };
             };
         };
@@ -2434,7 +2683,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote";
+                    type: "agent_create" | "policy_update" | "agent_freeze" | "agent_unfreeze" | "grant_issue" | "grant_revoke" | "execution_cancel" | "agent_archive" | "agent_restore" | "agent_delete" | "approval_vote" | "payout_authorize";
                     correlation_id: string;
                     signed_data: components["schemas"]["SignedData"];
                 };
@@ -4146,6 +4395,211 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["GrantView"][];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    revokeGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        grant: components["schemas"]["GrantView"];
+                        committed_correlation_ids: string[];
+                        committed_cancellations: {
+                            order_id: string | null;
+                            committed_at: string;
+                        }[];
+                        committed_truncated: boolean;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDocument"];
+                };
+            };
+        };
+    };
+    revokeAllGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["GrantView"][];
+                        committed_correlation_ids: string[];
+                        committed_cancellations: {
+                            order_id: string | null;
+                            committed_at: string;
+                        }[];
+                        committed_truncated: boolean;
                     };
                 };
             };
@@ -7104,6 +7558,7 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     })[];
+                    payout_authorization_id?: string;
                 };
             };
         };
@@ -7566,6 +8021,7 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     })[];
+                    payout_authorization_id?: string;
                 };
             };
         };

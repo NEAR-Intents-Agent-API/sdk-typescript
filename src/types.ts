@@ -49,6 +49,10 @@ export type ScheduleDay = ScheduleWindow["days"][number];
 export type PolicyView = Schemas["PolicyView"];
 export type PolicyHistoryView = Success<"getPolicyHistory">;
 export type GrantView = Schemas["GrantView"];
+/** A grant the partner revoked with its API key, and the work already committed under it. */
+export type RevokeGrantResult = Success<"revokeGrant">;
+/** Every grant this call revoked (`data`, newest first) and the work committed under them. */
+export type RevokeAllGrantsResult = Success<"revokeAllGrants">;
 export type BudgetView = Schemas["BudgetView"];
 export type TimelockView = Schemas["TimelockView"];
 /** How a grant's holder proves itself: a grant `token`, an `oidc` identity or a `public_key`. */
@@ -61,12 +65,22 @@ export type ScheduledExecutionView = ScheduledPage["data"][number];
 export type Intent = Schemas["Intent"];
 export type SignedData = Schemas["SignedData"];
 export type IntentPreview = Schemas["IntentPreview"];
+/** A passkey wallet-request step: the challenge hashes `wallet_request` (NEP-616). */
+export type WalletRequestPreview = Schemas["WalletRequestPreview"];
+/** A passkey consent step: the challenge hashes `offchain_message` (NEP-641). */
+export type OffchainMessagePreview = Schemas["OffchainMessagePreview"];
+/** The NEP-641 message a passkey consent step's WebAuthn challenge commits to. */
+export type OffchainMessage = Schemas["OffchainMessage"];
+/** The one 1Click deposit a `payout_authorize` intent lets the agent's EVM or Solana key pay. */
+export type PayoutPreview = NonNullable<IntentPreview["payout"]>;
 export type DeletionPreview = Schemas["DeletionPreview"];
 export type GenerateIntentRequest = RequestBody<"generateIntent">;
 export type GenerateIntentResponse = Schemas["GenerateIntentResponse"];
 export type IntentType = GenerateIntentResponse["type"];
 export type SubmitIntentRequest = RequestBody<"submitIntent">;
 type GrantIssueRequest = Extract<GenerateIntentRequest, { type: "grant_issue" }>;
+/** `payout_authorize`: one owner-signed 1Click deposit outside the key's `sign_intent` rules. */
+export type PayoutAuthorizeRequest = Extract<GenerateIntentRequest, { type: "payout_authorize" }>;
 /**
  * The `credential` of a `grant_issue` intent, which the owner signs: the SHA-256 hex of a grant
  * token, an `oidc` workload identity or a `public_key` workload key.
@@ -81,24 +95,26 @@ export type GrantPublicKeyJwk = PublicKeyGrantCredential["jwk"];
 /** An issuer public key the owner signs into an `oidc` grant (`jwks`). */
 export type OidcSigningKey = NonNullable<OidcGrantCredential["jwks"]>["keys"][number];
 
-/** Which signing standards a given owner action produces (the wallet must sign `intent.payload`). */
+type OwnerStandard<T extends IntentType> =
+  | "eip712"
+  | "webauthn"
+  | (T extends "policy_update"
+      ? "nep413" | "nep366"
+      : T extends "agent_create" | "agent_freeze" | "agent_unfreeze" | "agent_delete"
+        ? "nep366"
+        : "nep413");
+type ResponseVariantOf<V, T extends IntentType> = V extends { intent: infer I }
+  ? [Extract<I, { standard: OwnerStandard<T> }>] extends [never]
+    ? never
+    : Omit<V, "type" | "intent"> & { type: T; intent: Extract<I, { standard: OwnerStandard<T> }> }
+  : never;
+/**
+ * Which signing standards a given owner action produces (the wallet must sign `intent.payload`).
+ * A `webauthn` intent comes with its preimage: `preview.wallet_request` or
+ * `preview.offchain_message`.
+ */
 export type GenerateIntentResponseOf<T extends IntentType> = T extends IntentType
-  ? Omit<GenerateIntentResponse, "type" | "intent"> & {
-      type: T;
-      intent: Extract<
-        Intent,
-        {
-          standard:
-            | "eip712"
-            | "webauthn"
-            | (T extends "policy_update"
-                ? "nep413" | "nep366"
-                : T extends "agent_create" | "agent_freeze" | "agent_unfreeze" | "agent_delete"
-                  ? "nep366"
-                  : "nep413");
-        }
-      >;
-    }
+  ? ResponseVariantOf<GenerateIntentResponse, T>
   : never;
 
 // ---- Workload identity
@@ -157,6 +173,7 @@ export type EvmSignMessageRequest = RequestBody<"nativeEvmSignMessage">;
 export type EvmSignTransactionRequest = RequestBody<"nativeEvmSignTransaction">;
 export type SolanaSignMessageRequest = RequestBody<"nativeSolanaSignMessage">;
 export type SolanaSignTransactionRequest = RequestBody<"nativeSolanaSignTransaction">;
+/** `payout_authorization_id` pays one deposit an owner's `payout_authorize` allows. */
 export type EvmSignIntentRequest = RequestBody<"nativeEvmSignIntent">;
 export type SolanaSignIntentRequest = RequestBody<"nativeSolanaSignIntent">;
 /** 1Click's signed `POST /v0/quote` answer, sent unchanged in `one_click_quotes`. */
