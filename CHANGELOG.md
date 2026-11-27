@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.7 (2026-11-27)
+
+Partner grant revoke, passkey consent preimages and owner-signed single payouts for `sign-intent`
+(near/agent-api#234, #235, #236). Types regenerated from API main (dfc9fbda), which is what
+production runs. Breaking for types only: `GenerateIntentResponse` is a union, so read
+`preview.wallet_request` or `preview.offchain_message` after narrowing (`"wallet_request" in
+generated.preview`).
+
+- `revokeGrant(agentId, grantId)` and `revokeAllGrants(agentId)` revoke grants with the API key
+  alone, no owner signature. `revoked_reason` reads `partner_revoked`; the grant's next request is
+  refused with `agent_grant_required`; committed work keeps running and is reported in
+  `committed_correlation_ids`, `committed_cancellations` and `committed_truncated`. New types
+  `RevokeGrantResult`, `RevokeAllGrantsResult`.
+- Every `webauthn` intent carries exactly one preimage: `preview.wallet_request` (NEP-616) or, new,
+  `preview.offchain_message` (NEP-641) for consent steps (`grant_issue`, `grant_revoke`, local
+  `policy_update`, `execution_cancel`, `agent_archive`, `agent_restore`, `approval_vote`,
+  `payout_authorize`). New `offchainMessageChallenge`, `serializeOffchainMessage` and
+  `verifyPasskeyChallenge(generated)`, which checks either preimage against the challenge. New types
+  `WalletRequestPreview`, `OffchainMessagePreview`, `OffchainMessage`.
+- New owner intent `payout_authorize` (`PayoutAuthorizeRequest`, `preview.payout` as
+  `PayoutPreview`): one 1Click deposit the agent's EVM or Solana key may pay through `sign-intent`
+  outside `sign_intent.receivers` and `withdrawals`, with `amount_in` as a ceiling, `min_amount_out`
+  as a floor and `valid_until` 5 minutes to 24 hours ahead. `nativeEvmSignIntent` and
+  `nativeSolanaSignIntent` take `payout_authorization_id`, the authorization's `correlation_id`.
+- `GenerateIntentResponseOf<T>` keeps each response variant whose intent standard `T` can produce,
+  so a narrowed `webauthn` response still carries its preview type.
+
 ## 0.9.6 (2026-11-26)
 
 Exact-output swaps and withdrawals, output floors and input ceilings checked against a fresh

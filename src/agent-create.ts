@@ -102,7 +102,8 @@ function eip712Call(out: unknown) {
 
 /** A passkey signs a challenge: the request it hashes must be the one the preview shows. */
 function webauthnCall(generated: GenerateIntentResponse, challenge: string) {
-  const request = generated.preview.wallet_request;
+  const request =
+    "wallet_request" in generated.preview ? generated.preview.wallet_request : undefined;
   if (!request) fail("a passkey agent_create preview must carry its wallet_request");
   if (walletRequestChallenge(request) !== challenge)
     fail("the WebAuthn challenge does not hash the previewed wallet_request");

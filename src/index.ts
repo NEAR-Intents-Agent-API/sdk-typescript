@@ -57,6 +57,11 @@ export {
   grantCommitment,
 } from "./grants.js";
 export { createIdempotencyKey, type IdempotentResult } from "./idempotency.js";
+export {
+  offchainMessageChallenge,
+  serializeOffchainMessage,
+  verifyPasskeyChallenge,
+} from "./offchain-message.js";
 export type * from "./types.js";
 export {
   serializeWalletRequestMessage,

@@ -16,7 +16,9 @@ const delegate: [
 const consent: [
   Equal<StandardOf<"grant_issue">, Wallet | "nep413">,
   Equal<StandardOf<"approval_vote">, Wallet | "nep413">,
-] = [true, true];
+  Equal<StandardOf<"grant_revoke">, Wallet | "nep413">,
+  Equal<StandardOf<"payout_authorize">, Wallet | "nep413">,
+] = [true, true, true, true];
 const either: Equal<StandardOf<"policy_update">, Wallet | "nep413" | "nep366"> = true;
 
 test("a NEAR owner signs each owner action in the standard the API generates", () => {

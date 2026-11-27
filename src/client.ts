@@ -46,6 +46,8 @@ import type {
   RecoverRequest,
   ReleaseListView,
   ReleaseView,
+  RevokeAllGrantsResult,
+  RevokeGrantResult,
   ScheduledPage,
   Signature,
   SignRequest,
@@ -585,6 +587,32 @@ export class AgentApi {
   }
 
   /**
+   * Revokes one grant with the API key alone: no owner signature. `revoked_reason` reads
+   * `partner_revoked`; the grant's next request is refused with `agent_grant_required` and its
+   * sessions end. Work already committed keeps running and is listed in `committed_*`. Revoking a
+   * revoked grant returns it unchanged. Freezing the agent stays the owner's.
+   */
+  revokeGrant(
+    agentId: string,
+    grantId: string,
+    options: RequestOptions = {},
+  ): Promise<RevokeGrantResult> {
+    return this.call(endpoints.revokeGrant, {
+      params: { agent_id: agentId, grant_id: grantId },
+      ...options,
+    });
+  }
+
+  /**
+   * Revokes every live grant on the agent with the API key alone, as {@link AgentApi.revokeGrant}
+   * does for one. `data` lists the grants this call revoked, newest first; the owner's wallet and
+   * policy are untouched.
+   */
+  revokeAllGrants(agentId: string, options: RequestOptions = {}): Promise<RevokeAllGrantsResult> {
+    return this.call(endpoints.revokeAllGrants, { params: { agent_id: agentId }, ...options });
+  }
+
+  /**
    * Trades a workload's identity token (an `oidc` grant) or a key assertion (a `public_key`
    * grant) for an `ngs_…` session token, which goes in `X-Grant-Token`. `forGrantSession` does
    * this and renews the session for you. `subject_token_type` defaults to `jwt`; `grant_id` is
@@ -990,7 +1018,10 @@ export class AgentApi {
    * Signs a NEAR Intents payload (canonical JSON text, `transfer` intents only) with the agent's
    * EVM key as ERC-191. Needs `native.evm.sign_intent`: it pays only that rule's `receivers`, and
    * 1Click deposits with `one_click_deposits` or `withdrawals`, each proven by its signed 1Click
-   * quote in `one_click_quotes` (checked offline; 1Click is never called). Publish `signed_data` as is.
+   * quote in `one_click_quotes` (checked offline; 1Click is never called). One deposit outside those
+   * rules can be paid with `payout_authorization_id`: the `correlation_id` of an owner-signed
+   * `payout_authorize` intent, spent by the first deposit whose quote matches its terms.
+   * Publish `signed_data` as is.
    * A freeze refuses new payloads but cannot recall one already signed.
    */
   nativeEvmSignIntent(

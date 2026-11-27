@@ -94,9 +94,10 @@ test("a passkey challenge must hash the previewed wallet request", () => {
   assert.ok(passkey);
   const asked = { grant: passkey.request.grant };
   const changed = copy(passkey.generated);
+  assert.ok("wallet_request" in changed.preview);
   must(changed.preview.wallet_request).nonce += 1;
   rejected(() => verifyAgentCreateIntent(changed, asked), /challenge does not hash/);
   const missing = copy(passkey.generated);
-  delete missing.preview.wallet_request;
+  Reflect.deleteProperty(missing.preview, "wallet_request");
   rejected(() => verifyAgentCreateIntent(missing, asked), /must carry its wallet_request/);
 });

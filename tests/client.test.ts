@@ -693,3 +693,41 @@ test("swap and withdraw types take exact input or exact output, never both", () 
   assert.equal(spent.amount_in, "10");
   assert.equal(paid.amount, undefined);
 });
+
+test("a partner revokes one grant or all of them with the API key alone", async () => {
+  const calls: { method: string; url: URL; headers: Headers }[] = [];
+  const api = new AgentApi({
+    baseUrl: "https://api.test",
+    apiKey,
+    fetch: async (input, init) => {
+      calls.push({
+        method: init?.method ?? "GET",
+        url: new URL(String(input)),
+        headers: new Headers(init?.headers),
+      });
+      const committed = {
+        committed_correlation_ids: [],
+        committed_cancellations: [],
+        committed_truncated: false,
+      };
+      return Response.json(
+        calls.length === 1
+          ? { grant: { grant_id: "g/1" }, ...committed }
+          : { data: [], ...committed },
+      );
+    },
+  });
+  const one = await api.forGrant(createGrantCredential().token).revokeGrant(agentId, "g/1");
+  const all = await api.revokeAllGrants(agentId);
+  assert.equal(one.grant.grant_id, "g/1");
+  assert.deepEqual(all.data, []);
+  assert.deepEqual(
+    calls.map(({ method, url }) => `${method} ${url.pathname}`),
+    [`POST /v1/agents/${agentId}/grants/g%2F1/revoke`, `POST /v1/agents/${agentId}/grants/revoke`],
+  );
+  for (const { headers } of calls) {
+    assert.equal(headers.get("x-api-key"), apiKey);
+    assert.equal(headers.get("x-grant-token"), null);
+    assert.equal(headers.get("idempotency-key"), null);
+  }
+});

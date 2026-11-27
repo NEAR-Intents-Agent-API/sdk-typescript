@@ -181,6 +181,18 @@ own wallet integration (NEAR wallet selector, viem, `@simplewebauthn/browser`). 
 usual split is: your backend calls `generateIntent` and returns the intent to the browser, the
 browser signs with the user's wallet, and your backend calls `submitIntent` with the result.
 
+A passkey signs only a 32-byte WebAuthn challenge, so every `webauthn` intent comes with the
+message the challenge hashes: `preview.wallet_request` for a step the wallet contract runs, or
+`preview.offchain_message` (NEP-641) for a consent step such as `grant_issue`, `grant_revoke`,
+`approval_vote` or `payout_authorize`. Check it on your backend before the owner signs:
+
+```ts
+if (generated.intent.standard === "webauthn" && !verifyPasskeyChallenge(generated))
+  throw new Error("the passkey challenge does not hash the previewed message");
+```
+
+`offchainMessageChallenge` and `walletRequestChallenge` compute each challenge on their own.
+
 ## Fund the account
 
 Incoming funds need no grant. Ask for a deposit address, send to it, and follow the status:
@@ -483,6 +495,38 @@ only such deposits may be due up to 96 hours ahead (1Click's own deadline); anyt
 the account refuses new payloads, but a payload signed before the freeze stays publishable until
 its deadline. A refused payload never reaches the wallet provider; a retry is judged again.
 
+#### One payout outside the rules
+
+To let the key pay one 1Click deposit that `receivers` and `withdrawals` do not allow, without a
+policy change, the owner signs a `payout_authorize` intent. `amount_in` is a ceiling (so an
+exact-output quote fits), `min_amount_out` a floor, and `valid_until` 5 minutes to 24 hours ahead:
+
+```ts
+const authorization = await api.generateIntent({
+  type: "payout_authorize",
+  agent_id: agentId,
+  key: "evm",
+  payout: {
+    origin_asset: "nep141:wrap.near",
+    amount_in: "1000000000000000000000000",
+    destination_asset: "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    min_amount_out: "3620000",
+    recipient: "0x…",
+    recipient_type: "DESTINATION_CHAIN",
+  },
+  valid_until: new Date(Date.now() + 60 * 60_000).toISOString(),
+});
+// Owner signs authorization.intent (preview.payout shows the terms), backend submits.
+const { signed_data } = await assistant.nativeEvmSignIntent(agentId, {
+  payload,
+  one_click_quotes: [quote],
+  payout_authorization_id: authorization.correlation_id,
+});
+```
+
+The first deposit whose quote matches the terms spends the authorization; its status reads
+`PROCESSING` until then. Everything else about the payload is checked as above.
+
 `nativeSolanaSignIn` signs a Sign-In-With-Solana login for a domain in `native.solana.sign_in`;
 `nativeSolanaSignTransfer` signs one SOL or SPL transfer to a `recipient` that `destinations`
 allows, under `native.solana.sign_transfer`.
@@ -621,7 +665,13 @@ with `provider_policy_unavailable` (503).
 
 Other owner actions use the same four steps:
 `agent_freeze`, `agent_unfreeze`, `grant_revoke`, `execution_cancel`, `agent_archive`,
-`agent_restore`, `agent_delete` and `approval_vote`. `listApprovals` and `getApproval` return an
+`agent_restore`, `agent_delete`, `approval_vote` and `payout_authorize`.
+
+Your backend can also take grants away without the owner: `revokeGrant(agentId, grantId)` and
+`revokeAllGrants(agentId)` use the API key alone. The grant's `revoked_reason` reads
+`partner_revoked`, its next request is refused with `agent_grant_required`, and work already
+committed keeps running (listed in `committed_correlation_ids` and `committed_cancellations`).
+Issuing a grant and freezing the account stay owner actions. `listApprovals` and `getApproval` return an
 approval's retained signed submissions in `votes`, oldest first, as `{ voter, verdict, voted_at }`.
 `voter` is the owner's principal ID (`near:<account>:<public_key>`, `evm:<account>` or
 `passkey:<account>`). `voted_at` is when the API recorded the submission. The API records it before
@@ -954,13 +1004,13 @@ Every method also takes `{ signal }` to cancel it. Requests omit cookies and rej
 |---|---|
 | Owner actions | `generateIntent`, `submitIntent`, `getStatus`, `getHistory`, `lookupOperations`, `getOperationProof`, `getReceipt`, `listReceipts` |
 | Agents | `listAgents`, `getAgent`, `getWallet`, `getBalances`, `getAddress`, `getContainment`, `listProviderRecords` |
-| Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `exchangeGrantToken`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
+| Rules and access | `getPolicy`, `getPolicyHistory`, `listGrants`, `revokeGrant`, `revokeAllGrants`, `exchangeGrantToken`, `listApprovals`, `getApproval`, `listScheduledExecutions` |
 | Agent actions (need a grant) | `swap`, `placeLimitOrder`, `withdraw`, `transfer`, `shield`, `unshield` (deprecated: always refused), `cancelLimitOrder`, `cancelAllLimitOrders` |
 | Limit order reads | `listLimitOrders`, `getLimitOrder` |
 | Funding and recovery | `deposit`, `recover` |
 | The agent's own keys outside NEAR Intents (each needs its switch in the policy's `native` block and a grant) | `nativeNearSignMessage`, `nativeNearTransfer`, `nativeNearCall`, `nativeEvmSignTypedData`, `nativeEvmSignMessage`, `nativeEvmSignIntent`, `nativeEvmSignTransaction`, `nativeSolanaSignIn`, `nativeSolanaSignMessage`, `nativeSolanaSignIntent`, `nativeSolanaSignTransfer`, `nativeSolanaSignTransaction` |
 | Account and service | `whoami`, `getPartnerQuota`, `getNetwork`, `getTokens`, `listReleases`, `getLatestRelease`, `getRelease` |
-| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `forGrantSession`, `forGrantProof`, `createWorkloadKey`, `localJwkSigner`, `jwkThumbprintUri`, `oidcGrantAudience`, `createKeyAssertion`, `createGrantProof`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `verifyReceipt`, `verifyPaymentReceipt`, `logTileReader` (errors: `ReceiptNotCoveredError`, `LogUnavailableError`) |
+| Helpers | `createGrantCredential`, `grantCommitment`, `createIdempotencyKey`, `forGrant`, `forGrantSession`, `forGrantProof`, `createWorkloadKey`, `localJwkSigner`, `jwkThumbprintUri`, `oidcGrantAudience`, `createKeyAssertion`, `createGrantProof`, `verifyAgentCreateIntent`, `verifyPasskeyChallenge`, `offchainMessageChallenge`, `walletRequestChallenge`, `verifyOperationProof`, `fetchWitnessCheckpoint`, `verifyReceipt`, `verifyPaymentReceipt`, `logTileReader` (errors: `ReceiptNotCoveredError`, `LogUnavailableError`) |
 
 `getPartnerQuota()` reports how many agents you may create and what you have used.
 Every request, response and view type is exported (`Policy`, `AgentView`, `StatusResponse`,

@@ -1,9 +1,9 @@
 import { sha3_256 } from "@noble/hashes/sha3.js";
 import { base64, base64urlnopad } from "@scure/base";
-import type { GenerateIntentResponse } from "./types.js";
+import type { components } from "./generated/api.js";
 
 /** The NEP-616 wallet request a passkey's WebAuthn challenge commits to. */
-export type WalletRequestMessage = NonNullable<GenerateIntentResponse["preview"]["wallet_request"]>;
+export type WalletRequestMessage = components["schemas"]["WalletRequestMessage"];
 
 function concat(...parts: Uint8Array[]): Uint8Array {
   const output = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
